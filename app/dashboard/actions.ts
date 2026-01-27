@@ -1,14 +1,61 @@
 "use server"
 
-import { clearSession } from "@/lib/auth"
+import { clearSession, getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { db, sql, categories, projects, folders, files, downloadLogs } from "@/lib/db"
+import { db, sql, categories, projects, folders, files, downloadLogs, auditLogs } from "@/lib/db"
+import { getClientIP, getUserAgent } from "@/lib/auth"
 import { put, del } from "@vercel/blob"
 import { nanoid } from "nanoid"
 import { revalidatePath } from "next/cache"
 import { eq, and, isNull, desc, count, sum, sql as drizzleSql } from "drizzle-orm"
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+
+// ============ SECURITY: Authentication Guard ============
+
+/**
+ * Verify the user is authenticated before performing mutating actions.
+ * Returns an error response if not authenticated.
+ */
+async function requireAuthAction(): Promise<{ authorized: true } | { authorized: false; error: string }> {
+  const session = await getSession()
+  if (!session.valid) {
+    return { authorized: false, error: "Unauthorized" }
+  }
+  return { authorized: true }
+}
+
+// ============ SECURITY: Audit Logging ============
+
+/**
+ * Log a destructive or sensitive action for audit purposes.
+ * Non-blocking - errors are logged but don't fail the operation.
+ */
+async function logAuditAction(
+  action: string,
+  resourceType: string,
+  resourceId: string | null,
+  resourceName: string | null,
+  details?: string
+): Promise<void> {
+  try {
+    const ip = await getClientIP()
+    const userAgent = await getUserAgent()
+
+    await db.insert(auditLogs).values({
+      action,
+      resourceType,
+      resourceId,
+      resourceName,
+      details,
+      ipAddress: ip,
+      userAgent,
+    })
+  } catch (error) {
+    // Don't fail the operation if audit logging fails
+    console.error("Failed to log audit action:", error)
+  }
+}
 
 // File type definitions with magic bytes for binary validation
 // Text-based files don't need magic bytes - we trust the extension
@@ -18,7 +65,7 @@ const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> 
   tar: { mimeType: "application/x-tar" },
   gz: { mimeType: "application/gzip", magicBytes: [[0x1f, 0x8b]] },
   "7z": { mimeType: "application/x-7z-compressed", magicBytes: [[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]] },
-  
+
   // Documents
   pdf: { mimeType: "application/pdf", magicBytes: [[0x25, 0x50, 0x44, 0x46]] },
   doc: { mimeType: "application/msword" },
@@ -27,7 +74,7 @@ const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> 
   md: { mimeType: "text/markdown" },
   mdx: { mimeType: "text/mdx" },
   license: { mimeType: "text/plain" },
-  
+
   // Images (with magic bytes validation for binary formats)
   png: { mimeType: "image/png", magicBytes: [[0x89, 0x50, 0x4e, 0x47]] },
   jpg: { mimeType: "image/jpeg", magicBytes: [[0xff, 0xd8, 0xff]] },
@@ -38,7 +85,7 @@ const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> 
   heic: { mimeType: "image/heic" },
   webp: { mimeType: "image/webp", magicBytes: [[0x52, 0x49, 0x46, 0x46]] },
   ico: { mimeType: "image/x-icon" },
-  
+
   // Data files
   json: { mimeType: "application/json" },
   xml: { mimeType: "text/xml" },
@@ -47,7 +94,7 @@ const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> 
   yml: { mimeType: "text/yaml" },
   toml: { mimeType: "text/toml" },
   sql: { mimeType: "application/sql" },
-  
+
   // JavaScript/TypeScript
   js: { mimeType: "text/javascript" },
   jsx: { mimeType: "text/javascript" },
@@ -55,26 +102,26 @@ const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> 
   tsx: { mimeType: "text/typescript" },
   mjs: { mimeType: "text/javascript" },
   cjs: { mimeType: "text/javascript" },
-  
+
   // Styles
   css: { mimeType: "text/css" },
   scss: { mimeType: "text/scss" },
   sass: { mimeType: "text/sass" },
   less: { mimeType: "text/less" },
-  
+
   // Other code
   html: { mimeType: "text/html" },
   htm: { mimeType: "text/html" },
   vue: { mimeType: "text/vue" },
   svelte: { mimeType: "text/svelte" },
-  
+
   // Config files
   lock: { mimeType: "text/plain" },
   env: { mimeType: "text/plain" },
   gitignore: { mimeType: "text/plain" },
   npmrc: { mimeType: "text/plain" },
   nvmrc: { mimeType: "text/plain" },
-  
+
   // Shell scripts
   sh: { mimeType: "text/x-shellscript" },
   bash: { mimeType: "text/x-shellscript" },
@@ -84,19 +131,26 @@ const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> 
 function detectFileType(bytes: Uint8Array, filename: string): { valid: boolean; mimeType: string } {
   const ext = filename.split(".").pop()?.toLowerCase() || ""
   const typeInfo = FILE_TYPES[ext]
-  
+
   if (!typeInfo) {
     return { valid: false, mimeType: "application/octet-stream" }
   }
-  
+
   // If magic bytes are defined, validate them
   if (typeInfo.magicBytes) {
-    const isValid = typeInfo.magicBytes.some(magic => 
+    const isValid = typeInfo.magicBytes.some(magic =>
       magic.every((byte, i) => bytes[i] === byte)
     )
     return { valid: isValid, mimeType: typeInfo.mimeType }
   }
-  
+
+  // SECURITY: Validate SVG content to prevent XSS attacks
+  if (ext === "svg") {
+    if (!isSafeSVG(bytes)) {
+      return { valid: false, mimeType: typeInfo.mimeType }
+    }
+  }
+
   // For text-based files, just trust the extension
   return { valid: true, mimeType: typeInfo.mimeType }
 }
@@ -108,7 +162,51 @@ function generateSlug(name: string): string {
     .replace(/^-|-$/g, "") + "-" + nanoid(6)
 }
 
+// ============ SECURITY: Path Sanitization ============
+
+/**
+ * Sanitize file paths to prevent path traversal attacks.
+ * Removes "..", ".", and invalid characters from path segments.
+ */
+function sanitizePath(path: string): string {
+  return path
+    .split(/[\/\\]/) // Handle both forward and backslashes
+    .filter(part => part && part !== "." && part !== "..")
+    .map(part => part.replace(/[<>:"|?*\x00-\x1f]/g, "")) // Remove invalid chars
+    .filter(part => part.length > 0) // Remove empty segments after sanitization
+    .join("/")
+}
+
+// ============ SECURITY: SVG Content Validation ============
+
+/**
+ * Check if SVG content contains potentially dangerous elements.
+ * Blocks script tags, javascript: URIs, and event handlers.
+ */
+function isSafeSVG(content: Uint8Array): boolean {
+  try {
+    const text = new TextDecoder().decode(content)
+    // Check for dangerous patterns: script tags, javascript: URIs, event handlers
+    const dangerousPatterns = /<script/i
+    const javascriptUri = /javascript\s*:/i
+    const eventHandlers = /\s+on\w+\s*=/i
+    const dataUri = /data\s*:\s*text\/html/i
+
+    return !dangerousPatterns.test(text) &&
+      !javascriptUri.test(text) &&
+      !eventHandlers.test(text) &&
+      !dataUri.test(text)
+  } catch {
+    // If we can't decode, reject the file
+    return false
+  }
+}
+
 export async function logoutAction(): Promise<void> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    redirect("/login")
+  }
   await clearSession()
   redirect("/login")
 }
@@ -165,6 +263,11 @@ export async function createCategoryAction(
   name: string,
   color: string
 ): Promise<{ success: boolean; error?: string; categoryId?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   if (!name || name.trim().length === 0) {
     return { success: false, error: "Category name is required" }
   }
@@ -191,6 +294,11 @@ export async function updateCategoryAction(
   name: string,
   color: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   if (!name || name.trim().length === 0) {
     return { success: false, error: "Category name is required" }
   }
@@ -215,8 +323,24 @@ export async function updateCategoryAction(
 export async function deleteCategoryAction(
   categoryId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
+    // Get category name for audit log
+    const category = await db
+      .select({ name: categories.name })
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .limit(1)
+
     await db.delete(categories).where(eq(categories.id, categoryId))
+
+    // SECURITY: Audit log for destructive action
+    await logAuditAction("delete", "category", categoryId, category[0]?.name || null)
+
     revalidatePath("/dashboard")
     return { success: true }
   } catch (error) {
@@ -228,13 +352,18 @@ export async function deleteCategoryAction(
 export async function setDefaultCategoryAction(
   categoryId: string | null
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
     // First, unset any existing default
     await db
       .update(categories)
       .set({ isDefault: false })
       .where(eq(categories.isDefault, true))
-    
+
     // Set the new default if provided
     if (categoryId) {
       await db
@@ -242,7 +371,7 @@ export async function setDefaultCategoryAction(
         .set({ isDefault: true })
         .where(eq(categories.id, categoryId))
     }
-    
+
     revalidatePath("/dashboard")
     return { success: true }
   } catch (error) {
@@ -255,6 +384,11 @@ export async function assignProjectCategoryAction(
   projectId: string,
   categoryId: string | null
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
     await db
       .update(projects)
@@ -278,6 +412,11 @@ export async function createProjectAction(
   categoryId?: string,
   url?: string
 ): Promise<{ success: boolean; error?: string; projectId?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   if (!name || name.trim().length === 0) {
     return { success: false, error: "Project name is required" }
   }
@@ -332,6 +471,11 @@ export async function updateProjectAction(
   name: string,
   description?: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   if (!name || name.trim().length === 0) {
     return { success: false, error: "Project name is required" }
   }
@@ -359,6 +503,11 @@ export async function updateProjectDeployedUrlAction(
   projectId: string,
   deployedUrl: string | null
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
     // Validate URL format if provided
     if (deployedUrl && deployedUrl.trim()) {
@@ -389,13 +538,25 @@ export async function updateProjectDeployedUrlAction(
 export async function deleteProjectAction(
   projectId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
+    // Get project name for audit log
+    const project = await db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
     // Get all files in this project to delete from blob storage
     const projectFiles = await db
       .select({ blobUrl: files.blobUrl })
       .from(files)
       .where(eq(files.projectId, projectId))
-    
+
     // Delete all blobs
     for (const file of projectFiles) {
       try {
@@ -407,7 +568,16 @@ export async function deleteProjectAction(
 
     // Delete project (cascades to folders and files due to ON DELETE CASCADE)
     await db.delete(projects).where(eq(projects.id, projectId))
-    
+
+    // SECURITY: Audit log for destructive action
+    await logAuditAction(
+      "delete",
+      "project",
+      projectId,
+      project[0]?.name || null,
+      JSON.stringify({ fileCount: projectFiles.length })
+    )
+
     revalidatePath("/dashboard")
     return { success: true }
   } catch (error) {
@@ -485,6 +655,11 @@ export async function createFolderAction(
   name: string,
   parentId?: string
 ): Promise<{ success: boolean; error?: string; folderId?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   if (!name || name.trim().length === 0) {
     return { success: false, error: "Folder name is required" }
   }
@@ -511,6 +686,11 @@ export async function renameFolderAction(
   folderId: string,
   name: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   if (!name || name.trim().length === 0) {
     return { success: false, error: "Folder name is required" }
   }
@@ -535,10 +715,15 @@ export async function renameFolderAction(
 export async function deleteFolderAction(
   folderId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
-    // Get project ID and all files in this folder (and subfolders)
+    // Get project ID and folder name
     const folder = await db
-      .select({ projectId: folders.projectId })
+      .select({ projectId: folders.projectId, name: folders.name })
       .from(folders)
       .where(eq(folders.id, folderId))
       .limit(1)
@@ -546,8 +731,9 @@ export async function deleteFolderAction(
     if (folder.length === 0) {
       return { success: false, error: "Folder not found" }
     }
-    
+
     const projectId = folder[0].projectId
+    const folderName = folder[0].name
 
     // Get all files in this folder tree using raw SQL for recursive CTE
     const filesInTree = await sql`
@@ -570,7 +756,16 @@ export async function deleteFolderAction(
 
     // Delete folder (cascades to subfolders and sets folder_id to null on files)
     await db.delete(folders).where(eq(folders.id, folderId))
-    
+
+    // SECURITY: Audit log for destructive action
+    await logAuditAction(
+      "delete",
+      "folder",
+      folderId,
+      folderName,
+      JSON.stringify({ projectId, fileCount: filesInTree.length })
+    )
+
     revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
   } catch (error) {
@@ -634,13 +829,18 @@ export async function getOrCreateFolderPathAction(
   folderPath: string,
   baseFolderId?: string | null
 ): Promise<{ success: boolean; folderId?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   if (!folderPath || folderPath.trim().length === 0) {
     return { success: true, folderId: baseFolderId || undefined }
   }
 
   try {
     const pathParts = folderPath.split("/").filter(Boolean)
-    
+
     if (pathParts.length === 0) {
       return { success: true, folderId: baseFolderId || undefined }
     }
@@ -665,14 +865,14 @@ export async function getOrCreateFolderPathAction(
     for (let i = 0; i < pathParts.length; i++) {
       const folderName = pathParts[i]
       const key = `${currentParentId || "root"}:${folderName}`
-      
+
       if (folderMap.has(key)) {
         currentParentId = folderMap.get(key)!
       } else {
         // Need to create this folder and all remaining ones
         foldersToCreate.push({ name: folderName, parentId: currentParentId, tempIndex: i })
         currentParentId = null // Will be set after creation
-        
+
         // Add remaining folders to create list
         for (let j = i + 1; j < pathParts.length; j++) {
           foldersToCreate.push({ name: pathParts[j], parentId: null, tempIndex: j })
@@ -688,12 +888,12 @@ export async function getOrCreateFolderPathAction(
 
     // Create all missing folders in sequence
     let lastCreatedId: string | null = null
-    
+
     for (const folder of foldersToCreate) {
-      const parentId = folder.tempIndex === foldersToCreate[0].tempIndex 
-        ? folder.parentId 
+      const parentId = folder.tempIndex === foldersToCreate[0].tempIndex
+        ? folder.parentId
         : lastCreatedId
-      
+
       // Try to insert, handle potential race condition
       try {
         const result = await db
@@ -732,6 +932,11 @@ export async function getOrCreateFolderPathAction(
 export async function uploadFileAction(
   formData: FormData
 ): Promise<{ success: boolean; error?: string; publicId?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   const file = formData.get("file") as File
   const title = formData.get("title") as string
   const description = formData.get("description") as string
@@ -771,11 +976,13 @@ export async function uploadFileAction(
     let targetFolderId: string | null = folderId || null
 
     // If relativePath is provided, extract folder path and create folders
+    // SECURITY: Sanitize path to prevent path traversal attacks
     if (relativePath && relativePath.includes("/")) {
-      const pathParts = relativePath.split("/")
+      const sanitizedRelativePath = sanitizePath(relativePath)
+      const pathParts = sanitizedRelativePath.split("/")
       pathParts.pop() // Remove filename, keep only folder path
       const folderPath = pathParts.join("/")
-      
+
       if (folderPath) {
         const folderResult = await getOrCreateFolderPathAction(
           projectId,
@@ -825,6 +1032,11 @@ export async function moveFileAction(
   fileId: string,
   folderId: string | null
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
     const result = await db
       .update(files)
@@ -847,11 +1059,16 @@ export async function moveFilesAction(
   fileIds: string[],
   folderId: string | null
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
     if (fileIds.length === 0) {
       return { success: false, error: "No files to move" }
     }
-    
+
     // Use raw SQL for array operations
     const result = await sql`
       UPDATE files SET folder_id = ${folderId}, updated_at = NOW()
@@ -874,6 +1091,11 @@ export async function moveFolderAction(
   folderId: string,
   newParentId: string | null
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
     // Prevent moving a folder into itself or its own descendants
     if (newParentId) {
@@ -1075,7 +1297,7 @@ export async function getFileContentAction(
       "text/", "application/json", "application/javascript",
       "application/typescript", "application/xml"
     ]
-    
+
     const isTextFile = textMimeTypes.some((t) => mimeType.startsWith(t)) ||
       mimeType.includes("xml") || mimeType.includes("json")
 
@@ -1096,10 +1318,20 @@ export async function getFileContentAction(
 export async function deleteFileAction(
   fileId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
   try {
-    // Get the blob URL first
+    // Get the file details for audit log
     const result = await db
-      .select({ blobUrl: files.blobUrl })
+      .select({
+        blobUrl: files.blobUrl,
+        title: files.title,
+        originalFilename: files.originalFilename,
+        projectId: files.projectId
+      })
       .from(files)
       .where(eq(files.id, fileId))
       .limit(1)
@@ -1108,16 +1340,25 @@ export async function deleteFileAction(
       return { success: false, error: "File not found" }
     }
 
-    const blobUrl = result[0].blobUrl
+    const fileInfo = result[0]
 
     // Delete from Vercel Blob
-    await del(blobUrl)
+    await del(fileInfo.blobUrl)
 
     // Delete download logs first (foreign key constraint)
     await db.delete(downloadLogs).where(eq(downloadLogs.fileId, fileId))
 
     // Delete from database
     await db.delete(files).where(eq(files.id, fileId))
+
+    // SECURITY: Audit log for destructive action
+    await logAuditAction(
+      "delete",
+      "file",
+      fileId,
+      fileInfo.title || fileInfo.originalFilename,
+      JSON.stringify({ projectId: fileInfo.projectId, filename: fileInfo.originalFilename })
+    )
 
     revalidatePath("/dashboard")
     return { success: true }

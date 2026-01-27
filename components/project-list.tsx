@@ -221,7 +221,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Projects</h2>
+          <h2 className="text-2xl font-semibold tracking-tight gradient-text">Projects</h2>
           <p className="text-sm text-muted-foreground">
             Organize your files into projects and folders
           </p>
@@ -333,11 +333,15 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
 
       {/* Category Filter Tabs */}
       {categories.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="glass rounded-xl p-1.5 inline-flex flex-wrap items-center gap-1">
           <Button
-            variant={selectedCategoryFilter === null ? "default" : "outline"}
+            variant={selectedCategoryFilter === null ? "default" : "ghost"}
             size="sm"
             onClick={() => setSelectedCategoryFilter(null)}
+            className={cn(
+              "rounded-lg",
+              selectedCategoryFilter === null && "shadow-md"
+            )}
           >
             All ({projects.length})
           </Button>
@@ -347,10 +351,12 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
             return (
               <Button
                 key={category.id}
-                variant={selectedCategoryFilter === category.id ? "default" : "outline"}
+                variant={selectedCategoryFilter === category.id ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setSelectedCategoryFilter(category.id)}
                 className={cn(
+                  "rounded-lg",
+                  selectedCategoryFilter === category.id && "shadow-md",
                   selectedCategoryFilter !== category.id && colorClasses.bg,
                   selectedCategoryFilter !== category.id && colorClasses.text
                 )}
@@ -360,11 +366,13 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
             )
           })}
           <Button
-            variant={selectedCategoryFilter === "uncategorized" ? "default" : "outline"}
+            variant={selectedCategoryFilter === "uncategorized" ? "default" : "ghost"}
             size="sm"
             onClick={() => setSelectedCategoryFilter("uncategorized")}
             className={cn(
-              selectedCategoryFilter !== "uncategorized" && "bg-gray-100 text-gray-700"
+              "rounded-lg",
+              selectedCategoryFilter === "uncategorized" && "shadow-md",
+              selectedCategoryFilter !== "uncategorized" && "text-muted-foreground"
             )}
           >
             Uncategorized ({projects.filter((p) => !p.categoryId).length})
@@ -373,36 +381,40 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
       )}
 
       {filteredProjects.length === 0 && projects.length > 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Tag className="h-12 w-12 text-muted-foreground/50" />
-            <h3 className="mt-4 text-lg font-medium">No projects in this category</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
+        <div className="glass rounded-2xl border-dashed border-2 border-border/50">
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="rounded-2xl stat-icon-bg p-4 mb-4">
+              <Tag className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold">No projects in this category</h3>
+            <p className="mt-2 text-sm text-muted-foreground text-center max-w-sm">
               Try selecting a different category or create a new project
             </p>
             <Button
               variant="outline"
-              className="mt-4 bg-transparent"
+              className="mt-6"
               onClick={() => setSelectedCategoryFilter(null)}
             >
               View All Projects
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : projects.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FolderOpen className="h-12 w-12 text-muted-foreground/50" />
-            <h3 className="mt-4 text-lg font-medium">No projects yet</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
+        <div className="glass rounded-2xl border-dashed border-2 border-border/50">
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="rounded-2xl stat-icon-bg p-4 mb-4">
+              <FolderOpen className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold">No projects yet</h3>
+            <p className="mt-2 text-sm text-muted-foreground text-center max-w-sm">
               Create your first project to start organizing files
             </p>
-            <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
+            <Button className="mt-6 glow-hover" onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Project
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map((project) => (
@@ -410,11 +422,11 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
               <Link href={`/dashboard/projects/${project.id}`} className="absolute inset-0 z-10" />
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-lg bg-primary/10 p-2">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl stat-icon-bg p-2.5">
                       <FolderOpen className="h-5 w-5 text-primary" />
                     </div>
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
+                    <CardTitle className="text-lg font-semibold">{project.name}</CardTitle>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

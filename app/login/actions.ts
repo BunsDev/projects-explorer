@@ -39,8 +39,20 @@ export async function loginAction(
     return { success: false, error: "Invalid bypass token" }
   }
 
-  // If valid bypass token, skip IP/rate checks AND password verification
+  // If valid bypass token, skip IP/rate checks but STILL require password
   if (hasBypass) {
+    // Bypass only skips rate/IP checks - still verify password
+    if (!password) {
+      await logAuthAttempt(ip, userAgent, false, "missing_password")
+      return { success: false, error: "Password is required" }
+    }
+
+    const isValid = await verifyPassword(password)
+    if (!isValid) {
+      await logAuthAttempt(ip, userAgent, false, "invalid_password")
+      return { success: false, error: "Invalid password" }
+    }
+
     // Success with bypass! Log and create session
     await logAuthAttempt(ip, userAgent, true)
     const token = await createSession()

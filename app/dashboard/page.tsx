@@ -56,9 +56,9 @@ export default async function DashboardPage() {
   const totalDownloads = stats[0]?.total_downloads ?? 0
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <DashboardHeader />
-      <main className="container py-8">
+      <main className="container py-8 max-w-6xl mx-auto px-4">
         <StatsCards
           totalFiles={totalFiles}
           totalSize={totalSize}

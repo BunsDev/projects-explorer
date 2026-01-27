@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // SECURITY: Do not ignore TypeScript build errors in production
+  // This ensures type safety issues are caught before deployment
   images: {
     unoptimized: true,
   },

@@ -4,7 +4,8 @@ import { db, sessions, authLogs } from "./db"
 import { eq, and, gt, lt, sql } from "drizzle-orm"
 
 const SESSION_COOKIE_NAME = "zip_admin_session"
-const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+// SECURITY: Shorter session duration for admin panel (24 hours instead of 7 days)
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 // Rate limiting defaults (can be overridden via env)
 const DEFAULT_MAX_ATTEMPTS = 5
@@ -217,8 +218,9 @@ export async function isRateLimited(ip: string): Promise<boolean> {
     return (result[0]?.count ?? 0) >= maxAttempts
   } catch (error) {
     console.error("Failed to check rate limit:", error)
-    // On error, don't block (fail open for rate limiting)
-    return false
+    // SECURITY: Fail closed - assume rate limited if we can't verify
+    // This prevents attackers from bypassing rate limiting by triggering errors
+    return true
   }
 }
 

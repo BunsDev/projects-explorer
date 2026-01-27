@@ -128,7 +128,24 @@ CREATE TABLE IF NOT EXISTS auth_logs (
 );
 
 -- ============================================================
--- PART 5: Indexes for Performance
+-- PART 5: Audit Logs (Destructive Operation Tracking)
+-- ============================================================
+
+-- Audit logs table: tracks destructive operations for compliance/forensics
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  action VARCHAR(50) NOT NULL,           -- 'delete', etc.
+  resource_type VARCHAR(50) NOT NULL,    -- 'project', 'file', 'folder', 'category'
+  resource_id VARCHAR(100),              -- ID of the affected resource
+  resource_name VARCHAR(255),            -- Human-readable name
+  details TEXT,                          -- Additional JSON details
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================================
+-- PART 6: Indexes for Performance
 -- ============================================================
 
 -- Files indexes
@@ -155,6 +172,11 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 -- Auth logs indexes
 CREATE INDEX IF NOT EXISTS idx_auth_logs_ip_created ON auth_logs(ip_address, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_auth_logs_created_at ON auth_logs(created_at DESC);
+
+-- Audit logs indexes
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource_type ON audit_logs(resource_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 
 -- ============================================================
 -- Setup Complete!

@@ -205,6 +205,29 @@ export const authLogs = pgTable(
 )
 
 // ============================================================
+// Audit Logs Table (for tracking destructive operations)
+// ============================================================
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    action: varchar("action", { length: 50 }).notNull(), // e.g., "delete_project", "delete_file"
+    resourceType: varchar("resource_type", { length: 50 }).notNull(), // e.g., "project", "file", "folder"
+    resourceId: varchar("resource_id", { length: 100 }), // ID of the affected resource
+    resourceName: varchar("resource_name", { length: 255 }), // Name for human readability
+    details: text("details"), // Additional JSON details if needed
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    actionIdx: index("idx_audit_logs_action").on(table.action),
+    resourceTypeIdx: index("idx_audit_logs_resource_type").on(table.resourceType),
+    createdAtIdx: index("idx_audit_logs_created_at").on(table.createdAt),
+  })
+)
+
+// ============================================================
 // Type Exports
 // ============================================================
 export type Category = typeof categories.$inferSelect
@@ -227,3 +250,6 @@ export type NewDownloadLog = typeof downloadLogs.$inferInsert
 
 export type AuthLog = typeof authLogs.$inferSelect
 export type NewAuthLog = typeof authLogs.$inferInsert
+
+export type AuditLog = typeof auditLogs.$inferSelect
+export type NewAuditLog = typeof auditLogs.$inferInsert
