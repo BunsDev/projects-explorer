@@ -890,13 +890,13 @@ export async function getOrCreateFolderPathAction(
     let lastCreatedId: string | null = null
 
     for (const folder of foldersToCreate) {
-      const parentId = folder.tempIndex === foldersToCreate[0].tempIndex
+      const parentId: string | null = folder.tempIndex === foldersToCreate[0].tempIndex
         ? folder.parentId
         : lastCreatedId
 
       // Try to insert, handle potential race condition
       try {
-        const result = await db
+        const result: { id: string }[] = await db
           .insert(folders)
           .values({ projectId, parentId, name: folder.name })
           .returning({ id: folders.id })
@@ -910,7 +910,7 @@ export async function getOrCreateFolderPathAction(
           ? and(eq(folders.projectId, projectId), eq(folders.name, folder.name), eq(folders.parentId, parentId))
           : and(eq(folders.projectId, projectId), eq(folders.name, folder.name), isNull(folders.parentId))
 
-        const existing = await db
+        const existing: { id: string }[] = await db
           .select({ id: folders.id })
           .from(folders)
           .where(whereClause)

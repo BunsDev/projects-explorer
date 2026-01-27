@@ -2,15 +2,18 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 /**
- * Security Middleware
- * 
+ * Security Proxy (Next.js 16+)
+ *
  * Adds security headers to all responses to protect against common attacks:
  * - XSS (Cross-Site Scripting)
  * - Clickjacking
  * - MIME sniffing
  * - Information disclosure
+ *
+ * Note: Authentication is handled in server actions/layouts, not here.
+ * Proxy is only for routing operations and header modifications.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const response = NextResponse.next()
 
   // ============ Security Headers ============
@@ -30,11 +33,14 @@ export function middleware(request: NextRequest) {
   // Restrict browser features/APIs
   response.headers.set(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), browsing-topics=()"
+    "camera=(), microphone=(), geolocation=(), browsing-topics=(), interest-cohort=()"
   )
 
+  // Prevent DNS prefetching to protect privacy
+  response.headers.set("X-DNS-Prefetch-Control", "off")
+
   // ============ Content Security Policy ============
-  // Note: 'unsafe-inline' and 'unsafe-eval' are required for Next.js development
+  // Note: 'unsafe-inline' and 'unsafe-eval' are required for Next.js
   // Consider tightening these in production with nonce-based CSP
 
   const cspDirectives = [
@@ -61,27 +67,12 @@ export function middleware(request: NextRequest) {
 
   response.headers.set("Content-Security-Policy", cspDirectives.join("; "))
 
-  // ============ Additional Security Headers ============
-
-  // Prevent DNS prefetching to protect privacy
-  response.headers.set("X-DNS-Prefetch-Control", "off")
-
-  // Opt out of Google FLoC (Federated Learning of Cohorts)
-  response.headers.set("Permissions-Policy", "interest-cohort=()")
-
   return response
 }
 
-// Apply middleware to all routes except static files
+// Apply to all routes except static files
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files (icons, images, etc.)
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 }
