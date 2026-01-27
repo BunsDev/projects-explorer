@@ -1,27 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="215" height="48" fill="none">
-  <defs>
-    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2563EB"/>
-      <stop offset="100%" style="stop-color:#7C3AED"/>
-    </linearGradient>
-  </defs>
-  
   <!-- Icon mark - folder with compass -->
-  <g transform="translate(0, 4)">
+  <g transform="translate(4, 4)">
     <!-- Folder outline -->
-    <path d="M2 12 C2 7 6 3 11 3 L18 3 L22 8 L35 8 C40 8 44 12 44 17 L44 35 C44 40 40 44 35 44 L11 44 C6 44 2 40 2 35 Z" 
-          fill="none" stroke="url(#logoGradient)" stroke-width="2.5"/>
+    <path d="M2 8 L12 8 L15 12 L36 12 C38 12 40 14 40 16 L40 36 C40 38 38 40 36 40 L2 40 C0 40 0 38 0 36 L0 10 C0 8 0 8 2 8 Z" 
+          fill="#080808"/>
     
-    <!-- Compass/explore circle -->
-    <circle cx="23" cy="26" r="10" fill="none" stroke="url(#logoGradient)" stroke-width="2"/>
+    <!-- Compass diamond -->
+    <path d="M20 18 L28 26 L20 34 L12 26 Z" fill="none" stroke="#282828" stroke-width="2"/>
     
     <!-- Compass needle -->
-    <path d="M23 18 L26 26 L23 34 L20 26 Z" fill="url(#logoGradient)"/>
-    <path d="M15 26 L23 23 L31 26 L23 29 Z" fill="url(#logoGradient)" opacity="0.6"/>
+    <path d="M20 20 L22 26 L20 32 L18 26 Z" fill="#282828"/>
   </g>
   
   <!-- Text: Projects Explorer -->
-  <text x="54" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="#1F2937">
+  <text x="52" y="30" font-family="system-ui, -apple-system, sans-serif" font-size="17" font-weight="600" fill="#484848" dominant-baseline="middle">
     Projects Explorer
   </text>
 </svg>

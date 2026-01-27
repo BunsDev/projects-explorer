@@ -1,53 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" fill="none">
   <defs>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#E5E7EB" stroke-width="1"/>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#E5E7EB" stroke-width="1"/>
     </pattern>
   </defs>
   
   <!-- Background with grid -->
-  <rect width="1200" height="1200" fill="#F9FAFB"/>
+  <rect width="1200" height="1200" fill="#FAFAFA"/>
   <rect width="1200" height="1200" fill="url(#grid)"/>
   
-  <!-- Center folder/card icon -->
-  <g transform="translate(400, 420)">
-    <!-- Folder tab -->
-    <path d="M0 40 C0 20 15 5 35 5 L120 5 L150 35 L365 35 C385 35 400 50 400 70 L400 320 C400 340 385 355 365 355 L35 355 C15 355 0 340 0 320 Z" 
-          fill="#9CA3AF" opacity="0.3"/>
+  <!-- Center folder icon -->
+  <g transform="translate(450, 420)">
+    <!-- Folder outline -->
+    <path d="M20 40 L100 40 L120 65 L280 65 C295 65 300 75 300 85 L300 300 C300 310 295 320 280 320 L20 320 C5 320 0 310 0 300 L0 60 C0 50 5 40 20 40 Z" 
+          fill="none" stroke="#9CA3AF" stroke-width="4"/>
     
-    <!-- Main folder body -->
-    <rect x="15" y="55" width="370" height="280" rx="15" fill="#fff" stroke="#9CA3AF" stroke-width="3"/>
-    
-    <!-- Content lines -->
-    <g fill="#D1D5DB">
-      <!-- Header area -->
-      <rect x="40" y="80" width="200" height="12" rx="6"/>
-      <rect x="40" y="100" width="150" height="8" rx="4"/>
-      
-      <!-- Thumbnail area -->
-      <rect x="280" y="80" width="80" height="80" rx="8" fill="#E5E7EB"/>
-      
-      <!-- List items -->
-      <circle cx="55" cy="145" r="8"/>
-      <rect x="75" y="140" width="180" height="10" rx="5"/>
-      
-      <circle cx="55" cy="175" r="8"/>
-      <rect x="75" y="170" width="160" height="10" rx="5"/>
-      
-      <circle cx="55" cy="205" r="8"/>
-      <rect x="75" y="200" width="200" height="10" rx="5"/>
-      
-      <circle cx="55" cy="235" r="8"/>
-      <rect x="75" y="230" width="140" height="10" rx="5"/>
-      
-      <!-- Footer -->
-      <rect x="40" y="280" width="320" height="8" rx="4" opacity="0.5"/>
-      <rect x="40" y="300" width="250" height="8" rx="4" opacity="0.3"/>
-    </g>
+    <!-- Document inside -->
+    <rect x="80" y="120" width="140" height="160" rx="8" fill="none" stroke="#9CA3AF" stroke-width="3"/>
+    <line x1="110" y1="160" x2="190" y2="160" stroke="#D1D5DB" stroke-width="3"/>
+    <line x1="110" y1="190" x2="190" y2="190" stroke="#D1D5DB" stroke-width="3"/>
+    <line x1="110" y1="220" x2="170" y2="220" stroke="#D1D5DB" stroke-width="3"/>
   </g>
   
-  <!-- "No Image" text -->
-  <text x="600" y="850" font-family="system-ui, -apple-system, sans-serif" font-size="32" fill="#9CA3AF" text-anchor="middle">
+  <!-- Text -->
+  <text x="600" y="820" font-family="system-ui, -apple-system, sans-serif" font-size="28" fill="#9CA3AF" text-anchor="middle">
     No Preview Available
   </text>
 </svg>

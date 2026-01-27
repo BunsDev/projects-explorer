@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Archive, Lock, Download, Shield } from "lucide-react"
+import { Archive, Lock, Download, Shield, Rocket } from "lucide-react"
 import Link from "next/link"
 
 export default async function HomePage() {
@@ -20,12 +20,20 @@ export default async function HomePage() {
               <Archive className="h-6 w-6" />
               <span className="text-lg font-semibold">ZIP Manager</span>
             </div>
-            <Link href="/login">
-              <Button variant="outline" size="sm">
-                <Lock className="h-4 w-4 mr-1" />
-                Admin Login
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/setup">
+                <Button variant="ghost" size="sm">
+                  <Rocket className="h-4 w-4 mr-1" />
+                  Deploy Your Own
+                </Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="outline" size="sm">
+                  <Lock className="h-4 w-4 mr-1" />
+                  Admin Login
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -57,11 +65,17 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="mt-10">
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/login">
               <Button size="lg">
                 <Lock className="h-4 w-4 mr-2" />
                 Admin Login
+              </Button>
+            </Link>
+            <Link href="/setup">
+              <Button size="lg" variant="outline">
+                <Rocket className="h-4 w-4 mr-2" />
+                Deploy Your Own
               </Button>
             </Link>
           </div>
@@ -70,7 +84,16 @@ export default async function HomePage() {
 
       <footer className="border-t bg-white py-6">
         <div className="container mx-auto px-4 max-w-6xl text-center text-sm text-zinc-500">
-          ZIP Manager - Secure file sharing made simple
+          <p>Projects Explorer - Secure file sharing made simple</p>
+          <p className="mt-1">
+            <a href="https://github.com/BunsDev/projects-explorer" className="text-zinc-700 hover:underline">
+              Open source
+            </a>
+            {" · "}
+            <Link href="/setup" className="text-zinc-700 hover:underline">
+              Self-host guide
+            </Link>
+          </p>
         </div>
       </footer>
     </div>

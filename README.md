@@ -4,6 +4,15 @@
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FBunsDev%2Fprojects-explorer&env=DATABASE_URL,ADMIN_PASSWORD,BLOB_READ_WRITE_TOKEN&envDescription=Required%20environment%20variables%20for%20Projects%20Explorer&envLink=https%3A%2F%2Fgithub.com%2FBunsDev%2Fprojects-explorer%23environment-variables&project-name=projects-explorer&repository-name=projects-explorer)
 
+## Quick Start
+
+Want to deploy your own instance? Follow the **[Setup Guide →](https://your-domain.vercel.app/setup)** for step-by-step instructions, or use the one-click deploy button above.
+
+**TL;DR:**
+1. Create a [Neon](https://neon.tech) database → Run `scripts/setup.sql`
+2. Create [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) storage → Copy token
+3. Set environment variables → Deploy to Vercel
+
 ## Overview
 
 Projects Explorer is a self-hosted file management system that lets you upload, organize, and share projects with anyone. Unlike third-party services, you own the storage infrastructure—meaning your files can't be taken away, deprecated, or rug-pulled.
@@ -132,30 +141,23 @@ openssl rand -base64 32
 
 ## Database Setup
 
-After setting up your Neon database, run the SQL scripts to create the required tables:
+After setting up your Neon database, run the single setup script to create all required tables:
 
 ```bash
-# Connect to your Neon database and run these scripts in order:
+# Option 1: Via command line
+psql $DATABASE_URL -f scripts/setup.sql
 
-# 1. Core tables (files, sessions, download_logs)
-psql $DATABASE_URL -f scripts/setup-database.sql
-
-# 2. Projects and folders structure
-psql $DATABASE_URL -f scripts/add-projects-folders.sql
-
-# 3. Categories system
-psql $DATABASE_URL -f scripts/add-categories.sql
-
-# 4. Deployed URL tracking
-psql $DATABASE_URL -f scripts/add-deployed-url.sql
+# Option 2: Via Neon SQL Editor
+# 1. Go to console.neon.tech
+# 2. Select your project → SQL Editor
+# 3. Copy/paste contents of scripts/setup.sql
+# 4. Click "Run"
 ```
 
-Or run them all at once through Neon's SQL Editor:
-
-1. Go to [console.neon.tech](https://console.neon.tech)
-2. Select your project → **SQL Editor**
-3. Copy and paste contents of each script in order
-4. Execute each script
+The setup script creates all tables, indexes, and triggers in one go:
+- `projects`, `folders`, `files` — Core data structure
+- `categories` — Color-coded organization
+- `sessions`, `auth_logs`, `download_logs` — Security & analytics
 
 ### Database Schema
 
@@ -301,6 +303,7 @@ projects-explorer/
 │   │   ├── projects/         # Project detail pages
 │   │   └── upload/           # Upload page
 │   ├── login/                # Authentication
+│   ├── setup/                # Developer setup guide
 │   ├── share/                # Public file sharing API
 │   ├── globals.css           # Global styles
 │   ├── layout.tsx            # Root layout
@@ -314,11 +317,8 @@ projects-explorer/
 │   ├── auth.ts               # Authentication helpers
 │   ├── db.ts                 # Database connection
 │   └── utils.ts              # General utilities
-├── scripts/                  # Database migration scripts
-│   ├── setup-database.sql    # Core tables
-│   ├── add-projects-folders.sql
-│   ├── add-categories.sql
-│   └── add-deployed-url.sql
+├── scripts/                  # Database scripts
+│   └── setup.sql             # Complete database setup (run once)
 ├── public/                   # Static assets
 └── .env.example              # Environment template
 ```

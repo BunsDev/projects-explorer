@@ -1,43 +1,21 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2563EB"/>
-      <stop offset="100%" style="stop-color:#7C3AED"/>
-    </linearGradient>
-    <linearGradient id="folderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#60A5FA"/>
-      <stop offset="100%" style="stop-color:#A78BFA"/>
-    </linearGradient>
-  </defs>
-  
   <!-- Background -->
-  <rect width="180" height="180" rx="37" fill="url(#bgGradient)"/>
+  <rect width="180" height="180" rx="37" fill="#080808"/>
   
   <!-- Folder shape -->
-  <g transform="translate(30, 40)">
-    <!-- Folder back -->
-    <path d="M0 20 C0 10 8 2 18 2 L45 2 L55 15 L102 15 C112 15 120 23 120 33 L120 95 C120 105 112 113 102 113 L18 113 C8 113 0 105 0 95 Z" 
-          fill="url(#folderGradient)" opacity="0.6"/>
+  <g transform="translate(25, 35)">
+    <!-- Folder back tab -->
+    <path d="M8 5 L45 5 L55 18 L122 18 C126 18 130 22 130 26 L130 100 C130 104 126 108 122 108 L8 108 C4 108 0 104 0 100 L0 13 C0 9 4 5 8 5 Z" 
+          fill="#484848"/>
     
     <!-- Folder front -->
-    <path d="M5 35 C5 28 11 22 18 22 L102 22 C109 22 115 28 115 35 L115 95 C115 102 109 108 102 108 L18 108 C11 108 5 102 5 95 Z" 
-          fill="url(#folderGradient)" opacity="0.9"/>
-    
-    <!-- Grid pattern inside folder -->
-    <g stroke="#fff" stroke-width="1.5" opacity="0.4">
-      <line x1="25" y1="45" x2="95" y2="45"/>
-      <line x1="25" y1="60" x2="95" y2="60"/>
-      <line x1="25" y1="75" x2="95" y2="75"/>
-      <line x1="25" y1="90" x2="75" y2="90"/>
-      <line x1="40" y1="35" x2="40" y2="95"/>
-      <line x1="60" y1="35" x2="60" y2="95"/>
-      <line x1="80" y1="35" x2="80" y2="95"/>
-    </g>
+    <path d="M8 28 L122 28 C126 28 130 32 130 36 L130 100 C130 104 126 108 122 108 L8 108 C4 108 0 104 0 100 L0 36 C0 32 4 28 8 28 Z" 
+          fill="#282828"/>
     
     <!-- Magnifying glass -->
-    <g transform="translate(65, 50)">
-      <circle cx="22" cy="22" r="18" fill="none" stroke="#fff" stroke-width="4" opacity="0.9"/>
-      <line x1="35" y1="35" x2="50" y2="50" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+    <g transform="translate(35, 45)">
+      <circle cx="28" cy="28" r="22" fill="none" stroke="#686868" stroke-width="5"/>
+      <line x1="44" y1="44" x2="60" y2="60" stroke="#686868" stroke-width="6" stroke-linecap="round"/>
     </g>
   </g>
 </svg>
