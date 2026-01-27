@@ -6,7 +6,7 @@ import Link from "next/link"
 
 export default async function HomePage() {
   const session = await getSession()
-  
+
   if (session.valid) {
     redirect("/dashboard")
   }
@@ -44,10 +44,10 @@ export default async function HomePage() {
             Simple, Secure ZIP File Sharing
           </h1>
           <p className="mt-6 text-lg leading-8 text-zinc-600 text-pretty">
-            Upload ZIP files securely and share them with anyone via a direct download link. 
+            Upload ZIP files securely and share them with anyone via a direct download link.
             No sign-up required for downloads.
           </p>
-          
+
           <div className="mt-10 grid gap-6 sm:grid-cols-2">
             <div className="flex flex-col items-center p-6 bg-white rounded-xl border">
               <Download className="h-10 w-10 text-zinc-700 mb-3" />

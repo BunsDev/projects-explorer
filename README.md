@@ -9,6 +9,7 @@
 Want to deploy your own instance? Follow the **[Setup Guide →](https://your-domain.vercel.app/setup)** for step-by-step instructions, or use the one-click deploy button above.
 
 **TL;DR:**
+
 1. Create a [Neon](https://neon.tech) database
 2. Create [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) storage → Copy token
 3. Set environment variables in `.env.local`
@@ -30,15 +31,15 @@ Projects Explorer is a self-hosted file management system that lets you upload, 
 
 ## Tech Stack
 
-| Technology | Purpose |
-|------------|---------|
-| [Next.js 16](https://nextjs.org) | React framework with App Router |
-| [React 19](https://react.dev) | UI library |
-| [Drizzle ORM](https://orm.drizzle.team) | Type-safe SQL ORM |
-| [Neon](https://neon.tech) | Serverless PostgreSQL database |
-| [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) | File storage |
-| [Tailwind CSS 4](https://tailwindcss.com) | Styling |
-| [shadcn/ui](https://ui.shadcn.com) | UI components |
+| Technology                                                 | Purpose                         |
+| ---------------------------------------------------------- | ------------------------------- |
+| [Next.js 16](https://nextjs.org)                           | React framework with App Router |
+| [React 19](https://react.dev)                              | UI library                      |
+| [Drizzle ORM](https://orm.drizzle.team)                    | Type-safe SQL ORM               |
+| [Neon](https://neon.tech)                                  | Serverless PostgreSQL database  |
+| [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) | File storage                    |
+| [Tailwind CSS 4](https://tailwindcss.com)                  | Styling                         |
+| [shadcn/ui](https://ui.shadcn.com)                         | UI components                   |
 
 ## Architecture
 
@@ -107,11 +108,11 @@ Before deploying, ensure you have:
 
 Create a `.env.local` file in the project root (see `.env.example` for reference):
 
-| Variable | Description | Where to Get It |
-|----------|-------------|-----------------|
-| `DATABASE_URL` | Neon PostgreSQL connection string | [Neon Console](https://console.neon.tech) → Project → Connection Details → Copy "Connection string" |
-| `ADMIN_PASSWORD` | Password for admin dashboard login | Choose a strong password (min 12 characters recommended) |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage token | [Vercel Dashboard](https://vercel.com) → Project → Storage → Create Blob Store → Copy token |
+| Variable                | Description                        | Where to Get It                                                                                     |
+| ----------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | Neon PostgreSQL connection string  | [Neon Console](https://console.neon.tech) → Project → Connection Details → Copy "Connection string" |
+| `ADMIN_PASSWORD`        | Password for admin dashboard login | Choose a strong password (min 12 characters recommended)                                            |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage token          | [Vercel Dashboard](https://vercel.com) → Project → Storage → Create Blob Store → Copy token         |
 
 ### Getting Your Environment Variables
 
@@ -158,13 +159,13 @@ npm run setup
 
 ### Available Database Commands
 
-| Command | Description |
-|---------|-------------|
-| `bun run setup` | Push schema to database (creates/updates tables) |
-| `bun run db:push` | Same as setup - push schema changes |
-| `bun run db:generate` | Generate migration files from schema changes |
-| `bun run db:migrate` | Run pending migrations |
-| `bun run db:studio` | Open Drizzle Studio (database GUI) |
+| Command               | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `bun run setup`       | Push schema to database (creates/updates tables) |
+| `bun run db:push`     | Same as setup - push schema changes              |
+| `bun run db:generate` | Generate migration files from schema changes     |
+| `bun run db:migrate`  | Run pending migrations                           |
+| `bun run db:studio`   | Open Drizzle Studio (database GUI)               |
 
 > **Note:** The `bun run setup` command requires `DATABASE_URL` to be set in your `.env` or `.env.local` file.
 
@@ -183,7 +184,7 @@ export const projects = pgTable("projects", {
   categoryId: uuid("category_id").references(() => categories.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-})
+});
 ```
 
 ### Database Schema Diagram
@@ -357,7 +358,6 @@ projects-explorer/
 │   ├── login/                # Authentication
 │   ├── setup/                # Developer setup guide
 │   ├── share/                # Public file sharing API
-│   ├── globals.css           # Global styles
 │   ├── layout.tsx            # Root layout
 │   └── page.tsx              # Landing page
 ├── components/               # React components
@@ -375,6 +375,8 @@ projects-explorer/
 ├── scripts/                  # Legacy database scripts
 │   └── setup.sql             # Raw SQL schema (reference)
 ├── public/                   # Static assets
+├── styles/                   # Styles
+│   └── globals.css           # Global styles
 └── .env.example              # Environment template
 ```
 
@@ -382,16 +384,16 @@ projects-explorer/
 
 Projects Explorer supports a wide variety of file types:
 
-| Category | Extensions |
-|----------|------------|
-| **Archives** | `.zip`, `.tar`, `.gz`, `.7z` |
-| **Documents** | `.pdf`, `.doc`, `.docx`, `.txt`, `.md`, `.mdx` |
-| **Images** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`, `.ico`, `.heic`, `.heif` |
-| **Code** | `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs`, `.vue`, `.svelte` |
-| **Styles** | `.css`, `.scss`, `.sass`, `.less` |
-| **Data** | `.json`, `.xml`, `.csv`, `.yaml`, `.yml`, `.toml`, `.sql` |
-| **Config** | `.env`, `.gitignore`, `.npmrc`, `.nvmrc`, `.lock` |
-| **Scripts** | `.sh`, `.bash`, `.zsh` |
+| Category      | Extensions                                                                 |
+| ------------- | -------------------------------------------------------------------------- |
+| **Archives**  | `.zip`, `.tar`, `.gz`, `.7z`                                               |
+| **Documents** | `.pdf`, `.doc`, `.docx`, `.txt`, `.md`, `.mdx`                             |
+| **Images**    | `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`, `.ico`, `.heic`, `.heif` |
+| **Code**      | `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs`, `.vue`, `.svelte`            |
+| **Styles**    | `.css`, `.scss`, `.sass`, `.less`                                          |
+| **Data**      | `.json`, `.xml`, `.csv`, `.yaml`, `.yml`, `.toml`, `.sql`                  |
+| **Config**    | `.env`, `.gitignore`, `.npmrc`, `.nvmrc`, `.lock`                          |
+| **Scripts**   | `.sh`, `.bash`, `.zsh`                                                     |
 
 Maximum file size: **10MB per file**
 
@@ -409,23 +411,28 @@ Maximum file size: **10MB per file**
 ### Common Issues
 
 **"Database connection failed"**
+
 - Verify your `DATABASE_URL` is correct and includes `?sslmode=require`
 - Check if your Neon project is active (free tier projects pause after inactivity)
 
 **"Upload failed"**
+
 - Ensure `BLOB_READ_WRITE_TOKEN` is set correctly
 - Check file size (must be ≤ 10MB)
 - Verify file type is supported
 
 **"Invalid password"**
+
 - Double-check your `ADMIN_PASSWORD` environment variable
 - Passwords are case-sensitive
 
 **Build errors after deployment**
+
 - Clear Vercel build cache: Project Settings → General → "Clear Build Cache"
 - Ensure all environment variables are set for production
 
 **Schema mismatch errors**
+
 - Run `bun run db:push` to sync your schema with the database
 - For production, use migrations: `bun run db:generate && bun run db:migrate`
 

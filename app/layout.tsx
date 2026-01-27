@@ -2,7 +2,7 @@ import React from "react"
 import type { Metadata } from 'next'
 
 import { Analytics } from '@vercel/analytics/next'
-import './globals.css'
+import '../styles/globals.css'
 
 import { Geist, Geist_Mono, Geist as Font_Geist, Geist_Mono as Font_Geist_Mono, Source_Serif_4 as Font_Source_Serif_4 } from 'next/font/google'
 
