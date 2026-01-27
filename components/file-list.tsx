@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { type DbFile } from "@/lib/db"
+import { type File as DbFile } from "@/lib/db"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -95,20 +95,20 @@ export function FileList({ files }: FileListProps) {
                   <TableRow key={file.id}>
                     <TableCell className="font-medium">{file.title}</TableCell>
                     <TableCell className="text-zinc-500 text-sm">
-                      {file.original_filename}
+                      {file.originalFilename}
                     </TableCell>
-                    <TableCell>{formatBytes(file.file_size)}</TableCell>
-                    <TableCell>{file.download_count}</TableCell>
-                    <TableCell>{formatDate(file.created_at)}</TableCell>
+                    <TableCell>{formatBytes(file.fileSize)}</TableCell>
+                    <TableCell>{file.downloadCount}</TableCell>
+                    <TableCell>{file.createdAt ? formatDate(file.createdAt) : "-"}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => copyUrl(file.public_id)}
+                          onClick={() => copyUrl(file.publicId)}
                           title="Copy download URL"
                         >
-                          {copiedId === file.public_id ? (
+                          {copiedId === file.publicId ? (
                             <Check className="h-4 w-4 text-green-600" />
                           ) : (
                             <Copy className="h-4 w-4" />
