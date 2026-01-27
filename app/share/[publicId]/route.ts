@@ -1,4 +1,5 @@
-import { sql } from "@/lib/db"
+import { db, files, downloadLogs } from "@/lib/db"
+import { eq, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 
@@ -10,21 +11,25 @@ export async function GET(
 
   try {
     // Look up the file by public ID
-    const files = await sql`
-      SELECT id, blob_url, original_filename, expires_at
-      FROM files
-      WHERE public_id = ${publicId}
-      LIMIT 1
-    `
+    const result = await db
+      .select({
+        id: files.id,
+        blobUrl: files.blobUrl,
+        originalFilename: files.originalFilename,
+        expiresAt: files.expiresAt,
+      })
+      .from(files)
+      .where(eq(files.publicId, publicId))
+      .limit(1)
 
-    if (files.length === 0) {
+    if (result.length === 0) {
       return new NextResponse("File not found", { status: 404 })
     }
 
-    const file = files[0]
+    const file = result[0]
 
     // Check if file has expired
-    if (file.expires_at && new Date(file.expires_at as string) < new Date()) {
+    if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
       return new NextResponse("File not found", { status: 404 })
     }
 
@@ -37,17 +42,21 @@ export async function GET(
     const userAgent = headersList.get("user-agent") || null
 
     // Log the download and increment counter (non-blocking)
-    sql`
-      INSERT INTO download_logs (file_id, ip_address, user_agent)
-      VALUES (${file.id}, ${ipAddress}, ${userAgent})
-    `.catch(() => {})
+    db.insert(downloadLogs)
+      .values({
+        fileId: file.id,
+        ipAddress,
+        userAgent,
+      })
+      .catch(() => {})
 
-    sql`
-      UPDATE files SET download_count = download_count + 1 WHERE id = ${file.id}
-    `.catch(() => {})
+    db.update(files)
+      .set({ downloadCount: sql`${files.downloadCount} + 1` })
+      .where(eq(files.id, file.id))
+      .catch(() => {})
 
     // Redirect to the Blob URL for download
-    return NextResponse.redirect(file.blob_url as string)
+    return NextResponse.redirect(file.blobUrl)
   } catch (error) {
     console.error("Download error:", error)
     return new NextResponse("Internal server error", { status: 500 })

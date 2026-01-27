@@ -12,6 +12,14 @@ import {
   verifyBypassToken,
 } from "@/lib/auth"
 
+/**
+ * Get the client's IP address for display purposes
+ * This now returns the same IP that isIPAllowed checks against
+ */
+export async function getClientIPAction(): Promise<string> {
+  return await getClientIP()
+}
+
 export async function loginAction(
   formData: FormData
 ): Promise<{ success: boolean; error?: string }> {
@@ -31,21 +39,27 @@ export async function loginAction(
     return { success: false, error: "Invalid bypass token" }
   }
 
-  // Only enforce IP and rate limits if no valid bypass
-  if (!hasBypass) {
-    // Check IP allowlist
-    if (!isIPAllowed(ip)) {
-      await logAuthAttempt(ip, userAgent, false, "ip_blocked")
-      return { success: false, error: "Access denied" }
-    }
+  // If valid bypass token, skip IP/rate checks AND password verification
+  if (hasBypass) {
+    // Success with bypass! Log and create session
+    await logAuthAttempt(ip, userAgent, true)
+    const token = await createSession()
+    await setSessionCookie(token)
+    return { success: true }
+  }
 
-    // Check rate limiting
-    if (await isRateLimited(ip)) {
-      await logAuthAttempt(ip, userAgent, false, "rate_limited")
-      return {
-        success: false,
-        error: "Too many failed attempts. Please try again later.",
-      }
+  // Check IP allowlist
+  if (!isIPAllowed(ip)) {
+    await logAuthAttempt(ip, userAgent, false, "ip_blocked")
+    return { success: false, error: "Access denied" }
+  }
+
+  // Check rate limiting
+  if (await isRateLimited(ip)) {
+    await logAuthAttempt(ip, userAgent, false, "rate_limited")
+    return {
+      success: false,
+      error: "Too many failed attempts. Please try again later.",
     }
   }
 

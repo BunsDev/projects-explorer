@@ -9,9 +9,10 @@
 Want to deploy your own instance? Follow the **[Setup Guide →](https://your-domain.vercel.app/setup)** for step-by-step instructions, or use the one-click deploy button above.
 
 **TL;DR:**
-1. Create a [Neon](https://neon.tech) database → Run `scripts/setup.sql`
+1. Create a [Neon](https://neon.tech) database
 2. Create [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) storage → Copy token
-3. Set environment variables → Deploy to Vercel
+3. Set environment variables in `.env.local`
+4. Run `bun run setup` to initialize database → Deploy to Vercel
 
 ## Overview
 
@@ -33,6 +34,7 @@ Projects Explorer is a self-hosted file management system that lets you upload, 
 |------------|---------|
 | [Next.js 16](https://nextjs.org) | React framework with App Router |
 | [React 19](https://react.dev) | UI library |
+| [Drizzle ORM](https://orm.drizzle.team) | Type-safe SQL ORM |
 | [Neon](https://neon.tech) | Serverless PostgreSQL database |
 | [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) | File storage |
 | [Tailwind CSS 4](https://tailwindcss.com) | Styling |
@@ -52,6 +54,10 @@ Projects Explorer is a self-hosted file management system that lets you upload, 
 │  │   App Router  │  │ Server Actions│  │   API Routes  │       │
 │  │   (pages)     │  │   (actions)   │  │   (share)     │       │
 │  └───────────────┘  └───────────────┘  └───────────────┘       │
+│                              │                                   │
+│                     ┌────────┴────────┐                         │
+│                     │   Drizzle ORM   │                         │
+│                     └─────────────────┘                         │
 └─────────────────────────────────────────────────────────────────┘
               │                               │
               ▼                               ▼
@@ -141,25 +147,46 @@ openssl rand -base64 32
 
 ## Database Setup
 
-After setting up your Neon database, run the single setup script to create all required tables:
+This project uses **Drizzle ORM** for type-safe database operations. After setting up your Neon database, run the setup script to create all required tables:
 
 ```bash
-# Option 1: Via command line
-psql $DATABASE_URL -f scripts/setup.sql
-
-# Option 2: Via Neon SQL Editor
-# 1. Go to console.neon.tech
-# 2. Select your project → SQL Editor
-# 3. Copy/paste contents of scripts/setup.sql
-# 4. Click "Run"
+# Push schema to database (recommended for development)
+bun run setup
+# or
+npm run setup
 ```
 
-The setup script creates all tables, indexes, and triggers in one go:
-- `projects`, `folders`, `files` — Core data structure
-- `categories` — Color-coded organization
-- `sessions`, `auth_logs`, `download_logs` — Security & analytics
+### Available Database Commands
 
-### Database Schema
+| Command | Description |
+|---------|-------------|
+| `bun run setup` | Push schema to database (creates/updates tables) |
+| `bun run db:push` | Same as setup - push schema changes |
+| `bun run db:generate` | Generate migration files from schema changes |
+| `bun run db:migrate` | Run pending migrations |
+| `bun run db:studio` | Open Drizzle Studio (database GUI) |
+
+> **Note:** The `bun run setup` command requires `DATABASE_URL` to be set in your `.env` or `.env.local` file.
+
+### Schema Overview
+
+The database schema is defined in `lib/schema.ts` using Drizzle ORM:
+
+```typescript
+// Example: Projects table definition
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  deployedUrl: text("deployed_url"),
+  categoryId: uuid("category_id").references(() => categories.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+```
+
+### Database Schema Diagram
 
 ```
 ┌─────────────────┐       ┌─────────────────┐
@@ -214,33 +241,58 @@ The setup script creates all tables, indexes, and triggers in one go:
 
 ## Local Development
 
+### Quick Start
+
+```bash
+# 1. Install dependencies
+bun install          # or: npm install
+
+# 2. Copy environment template and fill in your values
+cp .env.example .env.local
+
+# 3. Run database setup (creates all tables via Drizzle)
+bun run setup        # or: npm run setup
+
+# 4. Start development server
+bun dev              # or: npm run dev
+```
+
+The app will be available at [http://localhost:3000](http://localhost:3000)
+
 ### Using npm
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server
+npm run setup        # Initialize database
 npm run dev
 ```
 
 ### Using Bun (recommended)
 
 ```bash
-# Install dependencies
 bun install
-
-# Start development server
+bun run setup        # Initialize database
 bun dev
 ```
-
-The app will be available at [http://localhost:3000](http://localhost:3000)
 
 ### Development Tips
 
 - **Hot Reload:** Next.js automatically reloads when you save files
 - **Admin Login:** Go to `/login` and use your `ADMIN_PASSWORD`
-- **Database GUI:** Use Neon's built-in SQL Editor or connect with any PostgreSQL client
+- **Database GUI:** Run `bun run db:studio` to open Drizzle Studio, or use Neon's built-in SQL Editor
+- **Type Safety:** Drizzle provides full TypeScript inference for all database queries
+
+### Making Schema Changes
+
+When you need to modify the database schema:
+
+1. Edit `lib/schema.ts` with your changes
+2. Run `bun run db:push` to apply changes (development)
+3. Or use migrations for production:
+   ```bash
+   bun run db:generate  # Generate migration SQL
+   bun run db:migrate   # Apply migrations
+   ```
 
 ## Deployment
 
@@ -286,7 +338,7 @@ vercel --prod
 
 ### Post-Deployment Checklist
 
-- [ ] Run database migration scripts in Neon SQL Editor
+- [ ] Run database setup: `bun run setup` (or push schema via Drizzle)
 - [ ] Test admin login at `your-domain.vercel.app/login`
 - [ ] Upload a test file to verify Blob storage works
 - [ ] Test public sharing link functionality
@@ -315,10 +367,13 @@ projects-explorer/
 │   └── ...                   # Other components
 ├── lib/                      # Utilities
 │   ├── auth.ts               # Authentication helpers
-│   ├── db.ts                 # Database connection
+│   ├── db.ts                 # Drizzle database client
+│   ├── schema.ts             # Drizzle schema definitions
 │   └── utils.ts              # General utilities
-├── scripts/                  # Database scripts
-│   └── setup.sql             # Complete database setup (run once)
+├── drizzle/                  # Generated migrations (if using)
+├── drizzle.config.ts         # Drizzle configuration
+├── scripts/                  # Legacy database scripts
+│   └── setup.sql             # Raw SQL schema (reference)
 ├── public/                   # Static assets
 └── .env.example              # Environment template
 ```
@@ -347,6 +402,7 @@ Maximum file size: **10MB per file**
 - **File Validation:** Magic byte verification for binary files prevents disguised uploads
 - **HTTPS Only:** Secure cookies in production
 - **No Client-Side Secrets:** All sensitive operations happen server-side
+- **Type-Safe Queries:** Drizzle ORM prevents SQL injection by design
 
 ## Troubleshooting
 
@@ -368,6 +424,10 @@ Maximum file size: **10MB per file**
 **Build errors after deployment**
 - Clear Vercel build cache: Project Settings → General → "Clear Build Cache"
 - Ensure all environment variables are set for production
+
+**Schema mismatch errors**
+- Run `bun run db:push` to sync your schema with the database
+- For production, use migrations: `bun run db:generate && bun run db:migrate`
 
 ## Contributing
 

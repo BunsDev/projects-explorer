@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,14 +8,20 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Lock, AlertCircle, ChevronDown, ShieldAlert } from "lucide-react"
-import { loginAction } from "./actions"
+import { Lock, AlertCircle, ChevronDown, ShieldAlert, Eye, EyeOff, Wifi } from "lucide-react"
+import { loginAction, getClientIPAction } from "./actions"
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showBypass, setShowBypass] = useState(false)
+  const [clientIP, setClientIP] = useState<string | null>(null)
+  const [showIP, setShowIP] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    getClientIPAction().then(setClientIP)
+  }, [])
 
   async function handleSubmit(formData: FormData) {
     setLoading(true)
@@ -42,6 +48,29 @@ export default function LoginPage() {
           <CardDescription>
             Enter your password to manage projects
           </CardDescription>
+          {clientIP && (
+            <div className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Wifi className="h-3 w-3" />
+              <span>Your IP:</span>
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono">
+                {showIP ? clientIP : "••••••••••••"}
+              </code>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => setShowIP(!showIP)}
+                title={showIP ? "Hide IP" : "Show IP"}
+              >
+                {showIP ? (
+                  <EyeOff className="h-3 w-3" />
+                ) : (
+                  <Eye className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form action={handleSubmit} className="space-y-4">
@@ -51,19 +80,6 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Enter admin password"
-                required
-                autoFocus
-                disabled={loading}
-              />
-            </div>
-
             <Collapsible open={showBypass} onOpenChange={setShowBypass}>
               <CollapsibleTrigger asChild>
                 <Button
@@ -83,7 +99,7 @@ export default function LoginPage() {
                   />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="pt-2">
+              <CollapsibleContent className="pt-2 pb-4">
                 <div className="space-y-2">
                   <Label htmlFor="bypassToken" className="text-sm text-muted-foreground">
                     Bypass Token
@@ -98,10 +114,42 @@ export default function LoginPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Use this if you&apos;re locked out due to IP restrictions or rate limiting.
+                    <br />
+                    <strong>Note:</strong> Password is not required when using bypass token.
                   </p>
                 </div>
               </CollapsibleContent>
             </Collapsible>
+
+            {!showBypass && (
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Enter admin password"
+                  required
+                  autoFocus
+                  disabled={loading}
+                />
+              </div>
+            )}
+
+            {showBypass && (
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-muted-foreground">
+                  Password <span className="text-xs">(optional with bypass)</span>
+                </Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Enter admin password"
+                  disabled={loading}
+                />
+              </div>
+            )}
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}

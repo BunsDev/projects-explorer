@@ -1,33 +1,12 @@
 import { neon } from "@neondatabase/serverless"
+import { drizzle } from "drizzle-orm/neon-http"
+import * as schema from "./schema"
 
+// Create the neon SQL client for raw queries (if needed)
 export const sql = neon(process.env.DATABASE_URL!)
 
-// File types
-export interface DbFile {
-  id: string
-  public_id: string
-  title: string
-  description: string | null
-  original_filename: string
-  blob_url: string
-  file_size: number
-  download_count: number
-  expires_at: Date | null
-  created_at: Date
-  updated_at: Date
-}
+// Create the Drizzle ORM instance with full schema
+export const db = drizzle(sql, { schema })
 
-export interface DbSession {
-  id: string
-  token: string
-  expires_at: Date
-  created_at: Date
-}
-
-export interface DbDownloadLog {
-  id: string
-  file_id: string
-  ip_address: string
-  user_agent: string | null
-  downloaded_at: Date
-}
+// Re-export schema types for convenience
+export * from "./schema"

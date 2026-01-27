@@ -2,10 +2,11 @@
 
 import { clearSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { sql } from "@/lib/db"
+import { db, sql, categories, projects, folders, files, downloadLogs } from "@/lib/db"
 import { put, del } from "@vercel/blob"
 import { nanoid } from "nanoid"
 import { revalidatePath } from "next/cache"
+import { eq, and, isNull, desc, count, sum, sql as drizzleSql } from "drizzle-orm"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
@@ -123,36 +124,35 @@ export type Category = {
   createdAt: Date
 }
 
-
-
 export async function getCategoriesAction(): Promise<{
   success: boolean
   categories?: Category[]
   error?: string
 }> {
   try {
-    const categories = await sql`
-      SELECT 
-        c.id,
-        c.name,
-        c.color,
-        c.is_default,
-        c.created_at,
-        COUNT(p.id)::int as project_count
-      FROM categories c
-      LEFT JOIN projects p ON p.category_id = c.id
-      GROUP BY c.id
-      ORDER BY c.name ASC
-    `
+    const result = await db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        color: categories.color,
+        isDefault: categories.isDefault,
+        createdAt: categories.createdAt,
+        projectCount: count(projects.id),
+      })
+      .from(categories)
+      .leftJoin(projects, eq(projects.categoryId, categories.id))
+      .groupBy(categories.id)
+      .orderBy(categories.name)
+
     return {
       success: true,
-      categories: categories.map(c => ({
-        id: c.id as string,
-        name: c.name as string,
-        color: c.color as string,
-        isDefault: c.is_default as boolean,
-        projectCount: c.project_count as number,
-        createdAt: c.created_at as Date,
+      categories: result.map(c => ({
+        id: c.id,
+        name: c.name,
+        color: c.color,
+        isDefault: c.isDefault,
+        projectCount: c.projectCount,
+        createdAt: c.createdAt!,
       }))
     }
   } catch (error) {
@@ -170,13 +170,13 @@ export async function createCategoryAction(
   }
 
   try {
-    const result = await sql`
-      INSERT INTO categories (name, color)
-      VALUES (${name.trim()}, ${color})
-      RETURNING id
-    `
+    const result = await db
+      .insert(categories)
+      .values({ name: name.trim(), color })
+      .returning({ id: categories.id })
+
     revalidatePath("/dashboard")
-    return { success: true, categoryId: result[0].id as string }
+    return { success: true, categoryId: result[0].id }
   } catch (error: unknown) {
     console.error("Create category error:", error)
     if (error && typeof error === "object" && "code" in error && error.code === "23505") {
@@ -196,11 +196,11 @@ export async function updateCategoryAction(
   }
 
   try {
-    await sql`
-      UPDATE categories 
-      SET name = ${name.trim()}, color = ${color}, updated_at = NOW()
-      WHERE id = ${categoryId}
-    `
+    await db
+      .update(categories)
+      .set({ name: name.trim(), color, updatedAt: new Date() })
+      .where(eq(categories.id, categoryId))
+
     revalidatePath("/dashboard")
     return { success: true }
   } catch (error: unknown) {
@@ -216,8 +216,7 @@ export async function deleteCategoryAction(
   categoryId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Projects with this category will have category_id set to null (ON DELETE SET NULL)
-    await sql`DELETE FROM categories WHERE id = ${categoryId}`
+    await db.delete(categories).where(eq(categories.id, categoryId))
     revalidatePath("/dashboard")
     return { success: true }
   } catch (error) {
@@ -231,11 +230,17 @@ export async function setDefaultCategoryAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // First, unset any existing default
-    await sql`UPDATE categories SET is_default = false WHERE is_default = true`
+    await db
+      .update(categories)
+      .set({ isDefault: false })
+      .where(eq(categories.isDefault, true))
     
     // Set the new default if provided
     if (categoryId) {
-      await sql`UPDATE categories SET is_default = true WHERE id = ${categoryId}`
+      await db
+        .update(categories)
+        .set({ isDefault: true })
+        .where(eq(categories.id, categoryId))
     }
     
     revalidatePath("/dashboard")
@@ -251,11 +256,11 @@ export async function assignProjectCategoryAction(
   categoryId: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await sql`
-      UPDATE projects 
-      SET category_id = ${categoryId}, updated_at = NOW()
-      WHERE id = ${projectId}
-    `
+    await db
+      .update(projects)
+      .set({ categoryId, updatedAt: new Date() })
+      .where(eq(projects.id, projectId))
+
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
@@ -292,21 +297,30 @@ export async function createProjectAction(
     // If no category provided, try to get the default category
     let finalCategoryId = categoryId || null
     if (!finalCategoryId) {
-      const defaultCategory = await sql`
-        SELECT id FROM categories WHERE is_default = true LIMIT 1
-      `
+      const defaultCategory = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.isDefault, true))
+        .limit(1)
+
       if (defaultCategory.length > 0) {
-        finalCategoryId = defaultCategory[0].id as string
+        finalCategoryId = defaultCategory[0].id
       }
     }
 
-    const result = await sql`
-      INSERT INTO projects (name, slug, description, category_id, deployed_url)
-      VALUES (${name.trim()}, ${slug}, ${description?.trim() || null}, ${finalCategoryId}, ${url?.trim() || null})
-      RETURNING id
-    `
+    const result = await db
+      .insert(projects)
+      .values({
+        name: name.trim(),
+        slug,
+        description: description?.trim() || null,
+        categoryId: finalCategoryId,
+        deployedUrl: url?.trim() || null,
+      })
+      .returning({ id: projects.id })
+
     revalidatePath("/dashboard")
-    return { success: true, projectId: result[0].id as string }
+    return { success: true, projectId: result[0].id }
   } catch (error) {
     console.error("Create project error:", error)
     return { success: false, error: "Failed to create project" }
@@ -323,11 +337,15 @@ export async function updateProjectAction(
   }
 
   try {
-    await sql`
-      UPDATE projects 
-      SET name = ${name.trim()}, description = ${description?.trim() || null}, updated_at = NOW()
-      WHERE id = ${projectId}
-    `
+    await db
+      .update(projects)
+      .set({
+        name: name.trim(),
+        description: description?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, projectId))
+
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
@@ -351,11 +369,14 @@ export async function updateProjectDeployedUrlAction(
       }
     }
 
-    await sql`
-      UPDATE projects 
-      SET deployed_url = ${deployedUrl?.trim() || null}, updated_at = NOW()
-      WHERE id = ${projectId}
-    `
+    await db
+      .update(projects)
+      .set({
+        deployedUrl: deployedUrl?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, projectId))
+
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
@@ -370,21 +391,22 @@ export async function deleteProjectAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Get all files in this project to delete from blob storage
-    const files = await sql`
-      SELECT blob_url FROM files WHERE project_id = ${projectId}
-    `
+    const projectFiles = await db
+      .select({ blobUrl: files.blobUrl })
+      .from(files)
+      .where(eq(files.projectId, projectId))
     
     // Delete all blobs
-    for (const file of files) {
+    for (const file of projectFiles) {
       try {
-        await del(file.blob_url as string)
+        await del(file.blobUrl)
       } catch (e) {
         console.error("Failed to delete blob:", e)
       }
     }
 
     // Delete project (cascades to folders and files due to ON DELETE CASCADE)
-    await sql`DELETE FROM projects WHERE id = ${projectId}`
+    await db.delete(projects).where(eq(projects.id, projectId))
     
     revalidatePath("/dashboard")
     return { success: true }
@@ -414,39 +436,40 @@ export async function getProjectsAction(): Promise<{
   error?: string
 }> {
   try {
-    const projects = await sql`
-      SELECT 
-        p.id,
-        p.name,
-        p.slug,
-        p.description,
-        p.deployed_url,
-        p.category_id,
-        p.created_at,
-        c.name as category_name,
-        c.color as category_color,
-        COUNT(f.id)::int as file_count,
-        COALESCE(SUM(f.file_size), 0)::bigint as total_size
-      FROM projects p
-      LEFT JOIN files f ON f.project_id = p.id
-      LEFT JOIN categories c ON c.id = p.category_id
-      GROUP BY p.id, c.name, c.color
-      ORDER BY p.created_at DESC
-    `
+    const result = await db
+      .select({
+        id: projects.id,
+        name: projects.name,
+        slug: projects.slug,
+        description: projects.description,
+        deployedUrl: projects.deployedUrl,
+        categoryId: projects.categoryId,
+        createdAt: projects.createdAt,
+        categoryName: categories.name,
+        categoryColor: categories.color,
+        fileCount: count(files.id),
+        totalSize: sum(files.fileSize),
+      })
+      .from(projects)
+      .leftJoin(files, eq(files.projectId, projects.id))
+      .leftJoin(categories, eq(categories.id, projects.categoryId))
+      .groupBy(projects.id, categories.name, categories.color)
+      .orderBy(desc(projects.createdAt))
+
     return {
       success: true,
-      projects: projects.map(p => ({
-        id: p.id as string,
-        name: p.name as string,
-        slug: p.slug as string,
-        description: p.description as string | null,
-        deployedUrl: p.deployed_url as string | null,
-        categoryId: p.category_id as string | null,
-        categoryName: p.category_name as string | null,
-        categoryColor: p.category_color as string | null,
-        fileCount: p.file_count as number,
-        totalSize: Number(p.total_size),
-        createdAt: p.created_at as Date,
+      projects: result.map(p => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        description: p.description,
+        deployedUrl: p.deployedUrl,
+        categoryId: p.categoryId,
+        categoryName: p.categoryName,
+        categoryColor: p.categoryColor,
+        fileCount: p.fileCount,
+        totalSize: Number(p.totalSize ?? 0),
+        createdAt: p.createdAt!,
       }))
     }
   } catch (error) {
@@ -467,13 +490,17 @@ export async function createFolderAction(
   }
 
   try {
-    const result = await sql`
-      INSERT INTO folders (project_id, parent_id, name)
-      VALUES (${projectId}, ${parentId || null}, ${name.trim()})
-      RETURNING id
-    `
+    const result = await db
+      .insert(folders)
+      .values({
+        projectId,
+        parentId: parentId || null,
+        name: name.trim(),
+      })
+      .returning({ id: folders.id })
+
     revalidatePath(`/dashboard/projects/${projectId}`)
-    return { success: true, folderId: result[0].id as string }
+    return { success: true, folderId: result[0].id }
   } catch (error) {
     console.error("Create folder error:", error)
     return { success: false, error: "Failed to create folder" }
@@ -489,13 +516,14 @@ export async function renameFolderAction(
   }
 
   try {
-    const result = await sql`
-      UPDATE folders SET name = ${name.trim()}, updated_at = NOW()
-      WHERE id = ${folderId}
-      RETURNING project_id
-    `
+    const result = await db
+      .update(folders)
+      .set({ name: name.trim(), updatedAt: new Date() })
+      .where(eq(folders.id, folderId))
+      .returning({ projectId: folders.projectId })
+
     if (result.length > 0) {
-      revalidatePath(`/dashboard/projects/${result[0].project_id}`)
+      revalidatePath(`/dashboard/projects/${result[0].projectId}`)
     }
     return { success: true }
   } catch (error) {
@@ -509,15 +537,20 @@ export async function deleteFolderAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Get project ID and all files in this folder (and subfolders)
-    const folder = await sql`SELECT project_id FROM folders WHERE id = ${folderId}`
+    const folder = await db
+      .select({ projectId: folders.projectId })
+      .from(folders)
+      .where(eq(folders.id, folderId))
+      .limit(1)
+
     if (folder.length === 0) {
       return { success: false, error: "Folder not found" }
     }
     
-    const projectId = folder[0].project_id as string
+    const projectId = folder[0].projectId
 
-    // Get all files in this folder tree
-    const files = await sql`
+    // Get all files in this folder tree using raw SQL for recursive CTE
+    const filesInTree = await sql`
       WITH RECURSIVE folder_tree AS (
         SELECT id FROM folders WHERE id = ${folderId}
         UNION ALL
@@ -527,7 +560,7 @@ export async function deleteFolderAction(
     `
 
     // Delete all blobs
-    for (const file of files) {
+    for (const file of filesInTree) {
       try {
         await del(file.blob_url as string)
       } catch (e) {
@@ -536,7 +569,7 @@ export async function deleteFolderAction(
     }
 
     // Delete folder (cascades to subfolders and sets folder_id to null on files)
-    await sql`DELETE FROM folders WHERE id = ${folderId}`
+    await db.delete(folders).where(eq(folders.id, folderId))
     
     revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
@@ -561,28 +594,32 @@ export async function getFoldersAction(
   error?: string
 }> {
   try {
-    const folders = await sql`
-      SELECT 
-        f.id,
-        f.name,
-        f.parent_id,
-        f.created_at,
-        COUNT(fi.id)::int as file_count
-      FROM folders f
-      LEFT JOIN files fi ON fi.folder_id = f.id
-      WHERE f.project_id = ${projectId} 
-        AND ${parentId ? sql`f.parent_id = ${parentId}` : sql`f.parent_id IS NULL`}
-      GROUP BY f.id
-      ORDER BY f.name ASC
-    `
+    const whereClause = parentId
+      ? and(eq(folders.projectId, projectId), eq(folders.parentId, parentId))
+      : and(eq(folders.projectId, projectId), isNull(folders.parentId))
+
+    const result = await db
+      .select({
+        id: folders.id,
+        name: folders.name,
+        parentId: folders.parentId,
+        createdAt: folders.createdAt,
+        fileCount: count(files.id),
+      })
+      .from(folders)
+      .leftJoin(files, eq(files.folderId, folders.id))
+      .where(whereClause)
+      .groupBy(folders.id)
+      .orderBy(folders.name)
+
     return {
       success: true,
-      folders: folders.map(f => ({
-        id: f.id as string,
-        name: f.name as string,
-        parentId: f.parent_id as string | null,
-        fileCount: f.file_count as number,
-        createdAt: f.created_at as Date,
+      folders: result.map(f => ({
+        id: f.id,
+        name: f.name,
+        parentId: f.parentId,
+        fileCount: f.fileCount,
+        createdAt: f.createdAt!,
       }))
     }
   } catch (error) {
@@ -592,7 +629,6 @@ export async function getFoldersAction(
 }
 
 // Create folders from a path (e.g. "src/components/ui") and return the leaf folder ID
-// Uses a single query with recursive CTE to minimize database calls
 export async function getOrCreateFolderPathAction(
   projectId: string,
   folderPath: string,
@@ -609,18 +645,17 @@ export async function getOrCreateFolderPathAction(
       return { success: true, folderId: baseFolderId || undefined }
     }
 
-    // First, get all existing folders for this project in a single query
-    const existingFolders = await sql`
-      SELECT id, name, parent_id
-      FROM folders
-      WHERE project_id = ${projectId}
-    `
+    // Get all existing folders for this project
+    const existingFolders = await db
+      .select({ id: folders.id, name: folders.name, parentId: folders.parentId })
+      .from(folders)
+      .where(eq(folders.projectId, projectId))
 
     // Build a map of existing folders by parent_id and name
     const folderMap = new Map<string, string>()
     for (const f of existingFolders) {
-      const key = `${f.parent_id || "root"}:${f.name}`
-      folderMap.set(key, f.id as string)
+      const key = `${f.parentId || "root"}:${f.name}`
+      folderMap.set(key, f.id)
     }
 
     // Walk through the path and collect folders to create
@@ -651,8 +686,7 @@ export async function getOrCreateFolderPathAction(
       return { success: true, folderId: currentParentId || undefined }
     }
 
-    // Create all missing folders in sequence (necessary due to parent dependencies)
-    // But batch into a single transaction-like approach
+    // Create all missing folders in sequence
     let lastCreatedId: string | null = null
     
     for (const folder of foldersToCreate) {
@@ -660,26 +694,30 @@ export async function getOrCreateFolderPathAction(
         ? folder.parentId 
         : lastCreatedId
       
-      const result = await sql`
-        INSERT INTO folders (project_id, parent_id, name)
-        VALUES (${projectId}, ${parentId}, ${folder.name})
-        ON CONFLICT DO NOTHING
-        RETURNING id
-      `
-      
-      if (result.length > 0) {
-        lastCreatedId = result[0].id as string
-      } else {
-        // Folder was created by concurrent request, fetch it
-        const existing = await sql`
-          SELECT id FROM folders 
-          WHERE project_id = ${projectId} 
-            AND name = ${folder.name}
-            AND ${parentId ? sql`parent_id = ${parentId}` : sql`parent_id IS NULL`}
-          LIMIT 1
-        `
+      // Try to insert, handle potential race condition
+      try {
+        const result = await db
+          .insert(folders)
+          .values({ projectId, parentId, name: folder.name })
+          .returning({ id: folders.id })
+
+        if (result.length > 0) {
+          lastCreatedId = result[0].id
+        }
+      } catch {
+        // Folder may have been created by concurrent request, fetch it
+        const whereClause = parentId
+          ? and(eq(folders.projectId, projectId), eq(folders.name, folder.name), eq(folders.parentId, parentId))
+          : and(eq(folders.projectId, projectId), eq(folders.name, folder.name), isNull(folders.parentId))
+
+        const existing = await db
+          .select({ id: folders.id })
+          .from(folders)
+          .where(whereClause)
+          .limit(1)
+
         if (existing.length > 0) {
-          lastCreatedId = existing[0].id as string
+          lastCreatedId = existing[0].id
         }
       }
     }
@@ -700,7 +738,7 @@ export async function uploadFileAction(
   const expiresAt = formData.get("expiresAt") as string
   const projectId = formData.get("projectId") as string
   const folderId = formData.get("folderId") as string
-  const relativePath = formData.get("relativePath") as string // e.g. "src/components/Button.tsx"
+  const relativePath = formData.get("relativePath") as string
 
   if (!file || file.size === 0) {
     return { success: false, error: "No file provided" }
@@ -742,7 +780,7 @@ export async function uploadFileAction(
         const folderResult = await getOrCreateFolderPathAction(
           projectId,
           folderPath,
-          folderId || null // Use selected folder as base if provided
+          folderId || null
         )
         if (folderResult.success && folderResult.folderId) {
           targetFolderId = folderResult.folderId
@@ -761,21 +799,18 @@ export async function uploadFileAction(
     const publicId = nanoid(21)
 
     // Save to database
-    await sql`
-      INSERT INTO files (public_id, title, description, original_filename, blob_url, file_size, mime_type, project_id, folder_id, expires_at)
-      VALUES (
-        ${publicId},
-        ${title.trim()},
-        ${description?.trim() || null},
-        ${file.name},
-        ${blob.url},
-        ${file.size},
-        ${mimeType},
-        ${projectId},
-        ${targetFolderId},
-        ${expiresAt || null}
-      )
-    `
+    await db.insert(files).values({
+      publicId,
+      title: title.trim(),
+      description: description?.trim() || null,
+      originalFilename: file.name,
+      blobUrl: blob.url,
+      fileSize: file.size,
+      mimeType,
+      projectId,
+      folderId: targetFolderId,
+      expiresAt: expiresAt ? new Date(expiresAt) : null,
+    })
 
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/projects/${projectId}`)
@@ -791,13 +826,14 @@ export async function moveFileAction(
   folderId: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const result = await sql`
-      UPDATE files SET folder_id = ${folderId}, updated_at = NOW()
-      WHERE id = ${fileId}
-      RETURNING project_id
-    `
-    if (result.length > 0) {
-      revalidatePath(`/dashboard/projects/${result[0].project_id}`)
+    const result = await db
+      .update(files)
+      .set({ folderId, updatedAt: new Date() })
+      .where(eq(files.id, fileId))
+      .returning({ projectId: files.projectId })
+
+    if (result.length > 0 && result[0].projectId) {
+      revalidatePath(`/dashboard/projects/${result[0].projectId}`)
     }
     return { success: true }
   } catch (error) {
@@ -816,11 +852,13 @@ export async function moveFilesAction(
       return { success: false, error: "No files to move" }
     }
     
+    // Use raw SQL for array operations
     const result = await sql`
       UPDATE files SET folder_id = ${folderId}, updated_at = NOW()
       WHERE id = ANY(${fileIds})
       RETURNING project_id
     `
+
     if (result.length > 0) {
       revalidatePath(`/dashboard/projects/${result[0].project_id}`)
     }
@@ -839,7 +877,6 @@ export async function moveFolderAction(
   try {
     // Prevent moving a folder into itself or its own descendants
     if (newParentId) {
-      // Check if newParentId is a descendant of folderId
       const checkQuery = await sql`
         WITH RECURSIVE folder_tree AS (
           SELECT id, parent_id FROM folders WHERE id = ${newParentId}
@@ -855,13 +892,14 @@ export async function moveFolderAction(
       }
     }
 
-    const result = await sql`
-      UPDATE folders SET parent_id = ${newParentId}
-      WHERE id = ${folderId}
-      RETURNING project_id
-    `
+    const result = await db
+      .update(folders)
+      .set({ parentId: newParentId })
+      .where(eq(folders.id, folderId))
+      .returning({ projectId: folders.projectId })
+
     if (result.length > 0) {
-      revalidatePath(`/dashboard/projects/${result[0].project_id}`)
+      revalidatePath(`/dashboard/projects/${result[0].projectId}`)
     }
     return { success: true }
   } catch (error) {
@@ -890,28 +928,40 @@ export async function getFilesAction(
   error?: string
 }> {
   try {
-    const files = await sql`
-      SELECT 
-        id, public_id, title, description, original_filename, 
-        file_size, mime_type, download_count, created_at, expires_at
-      FROM files
-      WHERE project_id = ${projectId}
-        AND ${folderId ? sql`folder_id = ${folderId}` : sql`folder_id IS NULL`}
-      ORDER BY created_at DESC
-    `
+    const whereClause = folderId
+      ? and(eq(files.projectId, projectId), eq(files.folderId, folderId))
+      : and(eq(files.projectId, projectId), isNull(files.folderId))
+
+    const result = await db
+      .select({
+        id: files.id,
+        publicId: files.publicId,
+        title: files.title,
+        description: files.description,
+        originalFilename: files.originalFilename,
+        fileSize: files.fileSize,
+        mimeType: files.mimeType,
+        downloadCount: files.downloadCount,
+        createdAt: files.createdAt,
+        expiresAt: files.expiresAt,
+      })
+      .from(files)
+      .where(whereClause)
+      .orderBy(desc(files.createdAt))
+
     return {
       success: true,
-      files: files.map(f => ({
-        id: f.id as string,
-        publicId: f.public_id as string,
-        title: f.title as string,
-        description: f.description as string | null,
-        originalFilename: f.original_filename as string,
-        fileSize: Number(f.file_size),
-        mimeType: f.mime_type as string,
-        downloadCount: f.download_count as number,
-        createdAt: f.created_at as Date,
-        expiresAt: f.expires_at as Date | null,
+      files: result.map(f => ({
+        id: f.id,
+        publicId: f.publicId,
+        title: f.title,
+        description: f.description,
+        originalFilename: f.originalFilename,
+        fileSize: f.fileSize,
+        mimeType: f.mimeType ?? "application/octet-stream",
+        downloadCount: f.downloadCount ?? 0,
+        createdAt: f.createdAt!,
+        expiresAt: f.expiresAt,
       }))
     }
   } catch (error) {
@@ -921,7 +971,6 @@ export async function getFilesAction(
 }
 
 // Get all files and folders for a project (for file tree view)
-// Uses a single combined query to avoid rate limiting
 export async function getProjectTreeAction(
   projectId: string
 ): Promise<{
@@ -944,74 +993,46 @@ export async function getProjectTreeAction(
   error?: string
 }> {
   try {
-    // Combined query using UNION ALL to fetch both folders and files in one request
-    const results = await sql`
-      SELECT 
-        'folder' as item_type,
-        id,
-        name,
-        parent_id,
-        NULL as public_id,
-        NULL as title,
-        NULL as original_filename,
-        NULL as folder_id,
-        NULL as mime_type,
-        NULL as file_size,
-        NULL as blob_url
-      FROM folders
-      WHERE project_id = ${projectId}
-      UNION ALL
-      SELECT 
-        'file' as item_type,
-        id,
-        NULL as name,
-        NULL as parent_id,
-        public_id,
-        title,
-        original_filename,
-        folder_id,
-        mime_type,
-        file_size::text,
-        blob_url
-      FROM files
-      WHERE project_id = ${projectId}
-      ORDER BY item_type DESC, name ASC NULLS LAST, original_filename ASC NULLS LAST
-    `
+    // Fetch folders and files separately using Drizzle
+    const folderResults = await db
+      .select({
+        id: folders.id,
+        name: folders.name,
+        parentId: folders.parentId,
+      })
+      .from(folders)
+      .where(eq(folders.projectId, projectId))
+      .orderBy(folders.name)
 
-    const folders: Array<{ id: string; name: string; parentId: string | null }> = []
-    const files: Array<{
-      id: string
-      publicId: string
-      title: string
-      originalFilename: string
-      folderId: string | null
-      mimeType: string
-      fileSize: number
-      blobUrl: string
-    }> = []
+    const fileResults = await db
+      .select({
+        id: files.id,
+        publicId: files.publicId,
+        title: files.title,
+        originalFilename: files.originalFilename,
+        folderId: files.folderId,
+        mimeType: files.mimeType,
+        fileSize: files.fileSize,
+        blobUrl: files.blobUrl,
+      })
+      .from(files)
+      .where(eq(files.projectId, projectId))
+      .orderBy(files.originalFilename)
 
-    for (const row of results) {
-      if (row.item_type === "folder") {
-        folders.push({
-          id: row.id as string,
-          name: row.name as string,
-          parentId: row.parent_id as string | null,
-        })
-      } else {
-        files.push({
-          id: row.id as string,
-          publicId: row.public_id as string,
-          title: row.title as string,
-          originalFilename: row.original_filename as string,
-          folderId: row.folder_id as string | null,
-          mimeType: row.mime_type as string,
-          fileSize: Number(row.file_size),
-          blobUrl: row.blob_url as string,
-        })
-      }
+    return {
+      success: true,
+      folders: folderResults,
+      files: fileResults.map(f => ({
+        id: f.id,
+        publicId: f.publicId,
+        title: f.title,
+        originalFilename: f.originalFilename,
+        folderId: f.folderId,
+        mimeType: f.mimeType ?? "application/octet-stream",
+        fileSize: f.fileSize,
+        blobUrl: f.blobUrl,
+      })),
     }
-
-    return { success: true, folders, files }
   } catch (error) {
     console.error("Get project tree error:", error)
     return { success: false, error: "Failed to fetch project tree" }
@@ -1030,19 +1051,24 @@ export async function getFileContentAction(
   error?: string
 }> {
   try {
-    const files = await sql`
-      SELECT blob_url, mime_type, original_filename
-      FROM files WHERE id = ${fileId}
-    `
+    const result = await db
+      .select({
+        blobUrl: files.blobUrl,
+        mimeType: files.mimeType,
+        originalFilename: files.originalFilename,
+      })
+      .from(files)
+      .where(eq(files.id, fileId))
+      .limit(1)
 
-    if (files.length === 0) {
+    if (result.length === 0) {
       return { success: false, error: "File not found" }
     }
 
-    const file = files[0]
-    const blobUrl = file.blob_url as string
-    const mimeType = file.mime_type as string
-    const filename = file.original_filename as string
+    const file = result[0]
+    const blobUrl = file.blobUrl
+    const mimeType = file.mimeType ?? "application/octet-stream"
+    const filename = file.originalFilename
 
     // For text-based files, fetch and return content
     const textMimeTypes = [
@@ -1072,24 +1098,26 @@ export async function deleteFileAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Get the blob URL first
-    const files = await sql`
-      SELECT blob_url FROM files WHERE id = ${fileId}
-    `
+    const result = await db
+      .select({ blobUrl: files.blobUrl })
+      .from(files)
+      .where(eq(files.id, fileId))
+      .limit(1)
 
-    if (files.length === 0) {
+    if (result.length === 0) {
       return { success: false, error: "File not found" }
     }
 
-    const blobUrl = files[0].blob_url as string
+    const blobUrl = result[0].blobUrl
 
     // Delete from Vercel Blob
     await del(blobUrl)
 
     // Delete download logs first (foreign key constraint)
-    await sql`DELETE FROM download_logs WHERE file_id = ${fileId}`
+    await db.delete(downloadLogs).where(eq(downloadLogs.fileId, fileId))
 
     // Delete from database
-    await sql`DELETE FROM files WHERE id = ${fileId}`
+    await db.delete(files).where(eq(files.id, fileId))
 
     revalidatePath("/dashboard")
     return { success: true }

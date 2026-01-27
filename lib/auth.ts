@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { sql } from "./db"
+import { db, sessions, authLogs } from "./db"
+import { eq, and, gt, lt, sql } from "drizzle-orm"
 
 const SESSION_COOKIE_NAME = "zip_admin_session"
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
@@ -11,9 +12,51 @@ const DEFAULT_WINDOW_MINUTES = 15
 
 // ============ IP UTILITIES ============
 
+// Cache for public IP lookup (in-memory, per-process)
+let cachedPublicIP: { ip: string; timestamp: number } | null = null
+const PUBLIC_IP_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Check if an IP is a localhost/local address
+ */
+function isLocalIP(ip: string): boolean {
+  return (
+    ip === "::1" ||
+    ip === "127.0.0.1" ||
+    ip === "localhost" ||
+    ip.startsWith("::ffff:127.") ||
+    ip === "unknown"
+  )
+}
+
+/**
+ * Fetch public IP from external service (for local development)
+ */
+async function fetchPublicIP(): Promise<string | null> {
+  // Check cache first
+  if (cachedPublicIP && Date.now() - cachedPublicIP.timestamp < PUBLIC_IP_CACHE_TTL) {
+    return cachedPublicIP.ip
+  }
+  
+  try {
+    const response = await fetch("https://api.ipify.org?format=json", {
+      signal: AbortSignal.timeout(3000), // 3 second timeout
+    })
+    if (response.ok) {
+      const data = await response.json()
+      cachedPublicIP = { ip: data.ip, timestamp: Date.now() }
+      return data.ip
+    }
+  } catch {
+    // Ignore errors
+  }
+  return null
+}
+
 /**
  * Extract client IP from request headers
  * Priority: x-forwarded-for > x-real-ip > cf-connecting-ip
+ * For local development, fetches public IP to match what user sees
  */
 export async function getClientIP(): Promise<string> {
   const headersList = await headers()
@@ -22,15 +65,19 @@ export async function getClientIP(): Promise<string> {
   const forwardedFor = headersList.get("x-forwarded-for")
   if (forwardedFor) {
     const firstIP = forwardedFor.split(",")[0]?.trim()
-    if (firstIP) return firstIP
+    if (firstIP && !isLocalIP(firstIP)) return firstIP
   }
   
   // Fallback headers
   const realIP = headersList.get("x-real-ip")
-  if (realIP) return realIP
+  if (realIP && !isLocalIP(realIP)) return realIP
   
   const cfIP = headersList.get("cf-connecting-ip")
-  if (cfIP) return cfIP
+  if (cfIP && !isLocalIP(cfIP)) return cfIP
+  
+  // If we're running locally, try to get public IP for consistent behavior
+  const publicIP = await fetchPublicIP()
+  if (publicIP) return publicIP
   
   return "unknown"
 }
@@ -132,10 +179,12 @@ export async function logAuthAttempt(
   failureReason?: AuthFailureReason
 ): Promise<void> {
   try {
-    await sql`
-      INSERT INTO auth_logs (ip_address, user_agent, success, failure_reason)
-      VALUES (${ip}, ${userAgent}, ${success}, ${failureReason || null})
-    `
+    await db.insert(authLogs).values({
+      ipAddress: ip,
+      userAgent,
+      success,
+      failureReason: failureReason || null,
+    })
   } catch (error) {
     // Don't fail the auth flow if logging fails
     console.error("Failed to log auth attempt:", error)
@@ -152,15 +201,20 @@ export async function isRateLimited(ip: string): Promise<boolean> {
   const windowMinutes = parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES || "", 10) || DEFAULT_WINDOW_MINUTES
   
   try {
-    const result = await sql`
-      SELECT COUNT(*)::int as attempts
-      FROM auth_logs
-      WHERE ip_address = ${ip}
-        AND success = false
-        AND created_at > NOW() - INTERVAL '1 minute' * ${windowMinutes}
-    `
+    const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000)
     
-    return (result[0]?.attempts ?? 0) >= maxAttempts
+    const result = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(authLogs)
+      .where(
+        and(
+          eq(authLogs.ipAddress, ip),
+          eq(authLogs.success, false),
+          gt(authLogs.createdAt, windowStart)
+        )
+      )
+    
+    return (result[0]?.count ?? 0) >= maxAttempts
   } catch (error) {
     console.error("Failed to check rate limit:", error)
     // On error, don't block (fail open for rate limiting)
@@ -190,7 +244,8 @@ export async function verifyBypassToken(token: string): Promise<boolean> {
  * Cleanup old auth logs (older than 90 days)
  */
 export async function cleanupOldAuthLogs(): Promise<void> {
-  await sql`DELETE FROM auth_logs WHERE created_at < NOW() - INTERVAL '90 days'`
+  const cutoffDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+  await db.delete(authLogs).where(lt(authLogs.createdAt, cutoffDate))
 }
 
 // Timing-safe string comparison using Web Crypto API
@@ -244,10 +299,10 @@ export async function createSession(): Promise<string> {
   const token = crypto.randomUUID() + generateRandomHex(12)
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS)
 
-  await sql`
-    INSERT INTO sessions (token, expires_at)
-    VALUES (${token}, ${expiresAt.toISOString()})
-  `
+  await db.insert(sessions).values({
+    token,
+    expiresAt,
+  })
 
   return token
 }
@@ -271,11 +326,16 @@ export async function getSession(): Promise<{ valid: boolean }> {
     return { valid: false }
   }
 
-  const result = await sql`
-    SELECT id, expires_at FROM sessions
-    WHERE token = ${token} AND expires_at > NOW()
-    LIMIT 1
-  `
+  const result = await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.token, token),
+        gt(sessions.expiresAt, new Date())
+      )
+    )
+    .limit(1)
 
   return { valid: result.length > 0 }
 }
@@ -292,12 +352,12 @@ export async function clearSession(): Promise<void> {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value
 
   if (token) {
-    await sql`DELETE FROM sessions WHERE token = ${token}`
+    await db.delete(sessions).where(eq(sessions.token, token))
   }
 
   cookieStore.delete(SESSION_COOKIE_NAME)
 }
 
 export async function cleanupExpiredSessions(): Promise<void> {
-  await sql`DELETE FROM sessions WHERE expires_at < NOW()`
+  await db.delete(sessions).where(lt(sessions.expiresAt, new Date()))
 }
