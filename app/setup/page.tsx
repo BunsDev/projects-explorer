@@ -39,7 +39,7 @@ export default function SetupPage() {
 -- • All indexes and triggers`
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b bg-white sticky top-0 z-10">
         <div className="container mx-auto px-4 max-w-4xl">
@@ -109,7 +109,7 @@ export default function SetupPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-medium">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
                   1
                 </div>
                 <div>
@@ -137,10 +137,10 @@ export default function SetupPage() {
                 </li>
                 <li>Create a new project (any name works)</li>
                 <li>Click <strong>Connection Details</strong> in the sidebar</li>
-                <li>Copy the <strong>Connection string</strong> (starts with <code className="bg-zinc-100 px-1 rounded">postgresql://</code>)</li>
+                <li>Copy the <strong>Connection string</strong> (starts with <code className="bg-muted px-1 rounded">postgresql://</code>)</li>
               </ol>
 
-              <div className="bg-zinc-900 rounded-lg p-4 font-mono text-sm">
+              <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-zinc-400 text-xs">Example connection string</span>
                   <Button
@@ -179,7 +179,7 @@ export default function SetupPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-medium">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
                   2
                 </div>
                 <div>
@@ -196,7 +196,7 @@ export default function SetupPage() {
                 In the Neon console, go to <strong>SQL Editor</strong> and run the setup script:
               </p>
 
-              <div className="bg-zinc-900 rounded-lg p-4 font-mono text-sm">
+              <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-zinc-400 text-xs">scripts/setup.sql</span>
                   <a
@@ -214,7 +214,7 @@ export default function SetupPage() {
               <div className="text-sm text-zinc-600">
                 <strong>Alternative:</strong> Run via command line:
               </div>
-              <div className="bg-zinc-900 rounded-lg p-4 font-mono text-sm">
+              <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <code className="text-green-400">psql $DATABASE_URL -f scripts/setup.sql</code>
               </div>
             </CardContent>
@@ -224,7 +224,7 @@ export default function SetupPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-medium">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
                   3
                 </div>
                 <div>
@@ -252,7 +252,7 @@ export default function SetupPage() {
                 <li>Select your project (or create one first via deploy)</li>
                 <li>Navigate to the <strong>Storage</strong> tab</li>
                 <li>Click <strong>Create Database</strong> → Select <strong>Blob</strong></li>
-                <li>Copy the <code className="bg-zinc-100 px-1 rounded">BLOB_READ_WRITE_TOKEN</code> from environment variables</li>
+                <li>Copy the <code className="bg-muted px-1 rounded">BLOB_READ_WRITE_TOKEN</code> from environment variables</li>
               </ol>
             </CardContent>
           </Card>
@@ -261,7 +261,7 @@ export default function SetupPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-medium">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
                   4
                 </div>
                 <div>
@@ -275,10 +275,10 @@ export default function SetupPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-zinc-700">
-                Create a strong password for your admin dashboard. This is what you&apos;ll use to login at <code className="bg-zinc-100 px-1 rounded">/login</code>.
+                Create a strong password for your admin dashboard. This is what you&apos;ll use to login at <code className="bg-muted px-1 rounded">/login</code>.
               </p>
 
-              <div className="bg-zinc-900 rounded-lg p-4 font-mono text-sm">
+              <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-zinc-400 text-xs">Generate a secure password (macOS/Linux)</span>
                 </div>
@@ -298,7 +298,7 @@ export default function SetupPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-medium">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
                   5
                 </div>
                 <div>
@@ -319,19 +319,19 @@ export default function SetupPage() {
                   <tbody className="divide-y">
                     <tr>
                       <td className="py-3">
-                        <code className="bg-zinc-100 px-2 py-1 rounded text-xs">DATABASE_URL</code>
+                        <code className="bg-muted px-2 py-1 rounded text-xs">DATABASE_URL</code>
                       </td>
                       <td className="py-3 text-zinc-600">Neon PostgreSQL connection string</td>
                     </tr>
                     <tr>
                       <td className="py-3">
-                        <code className="bg-zinc-100 px-2 py-1 rounded text-xs">ADMIN_PASSWORD</code>
+                        <code className="bg-muted px-2 py-1 rounded text-xs">ADMIN_PASSWORD</code>
                       </td>
                       <td className="py-3 text-zinc-600">Your chosen admin password</td>
                     </tr>
                     <tr>
                       <td className="py-3">
-                        <code className="bg-zinc-100 px-2 py-1 rounded text-xs">BLOB_READ_WRITE_TOKEN</code>
+                        <code className="bg-muted px-2 py-1 rounded text-xs">BLOB_READ_WRITE_TOKEN</code>
                       </td>
                       <td className="py-3 text-zinc-600">Vercel Blob storage token</td>
                     </tr>
@@ -339,7 +339,7 @@ export default function SetupPage() {
                 </table>
               </div>
 
-              <div className="bg-zinc-900 rounded-lg p-4 font-mono text-sm">
+              <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-zinc-400 text-xs">.env.local example</span>
                   <Button
@@ -408,7 +408,7 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
                   <p className="text-sm text-zinc-600 mb-3">
                     Run locally with Bun or npm
                   </p>
-                  <div className="bg-zinc-900 rounded p-2 font-mono text-xs text-green-400">
+                  <div className="bg-card rounded p-2 font-mono text-xs text-green-400">
                     bun install && bun dev
                   </div>
                 </div>

@@ -117,7 +117,7 @@ export function UploadForm() {
           <CardDescription>Your file is ready to share</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 p-3 bg-zinc-100 rounded-lg">
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
             <code className="flex-1 text-sm truncate">{success}</code>
             <Button variant="ghost" size="sm" onClick={copyUrl}>
               {copied ? (
@@ -167,8 +167,8 @@ export function UploadForm() {
           {/* File Drop Zone */}
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${file
-              ? "border-zinc-400 bg-zinc-50"
-              : "border-zinc-200 hover:border-zinc-300"
+              ? "border-input bg-muted"
+              : "border-border hover:border-input"
               }`}
           >
             {file ? (
