@@ -18,10 +18,10 @@ export function BreadcrumbNav({ items }: { items: BreadcrumbItem[] }) {
         <Home className="h-4 w-4" />
       </Link>
       {items.map((item, index) => (
-        <div key={index} className="flex items-center gap-1">
+        <div key={index} className="flex items-center gap-1 truncate">
           <ChevronRight className="h-4 w-4" />
           {item.href ? (
-            <Link href={item.href} className="hover:text-foreground transition-colors">
+            <Link href={item.href} className="hover:text-foreground transition-colors max-w-[100px] truncate block min-w-0">
               {item.label}
             </Link>
           ) : (

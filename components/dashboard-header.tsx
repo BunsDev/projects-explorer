@@ -18,23 +18,23 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
   return (
     <header className="glass-header rounded-b-2xl px-4 sm:px-6 py-1.5 sticky top-0 z-50 w-full mx-auto">
 
-      <div className="mx-auto max-w-screen-2xl w-full h-10 flex items-center gap-3 text-lg font-semibold justify-between">
+      <div className="mx-auto max-w-screen-2xl w-full h-10 flex items-center gap-3 text-base font-semibold justify-between">
         <div className="flex items-center gap-3">
-          {/* <Image src="/icon.svg" className="size-9 aspect-square object-contain" alt="Explorer" width={36} height={36} /> */}
-          <Link href="/" className="hover:underline text-primary">Home</Link> / <Link href="/dashboard" className="hover:underline text-foreground">{title ?? "Dashboard"}</Link>
+          <Image src="/icon.svg" className="size-8 aspect-square object-contain" alt="Explorer" width={32} height={32} />
+          <span className="text-base font-semibold line-clamp-1 max-w-[148px] sm:max-w-[184px] md:max-w-[336px]">{title ?? "Dashboard"}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <ThemeToggle />
           {isUploadPage && <Link href="/dashboard/upload">
-            <Button size="sm" className="glow-hover">
-              <Plus className="h-4 w-4 mr-1" />
-              Upload Files
+            <Button variant="glass" size="sm">
+              <Plus className="size-4" />
+              <span className="sr-only">Upload Files</span>
             </Button>
           </Link>}
           <form action={logoutAction}>
             <Button variant="ghost" size="sm" type="submit" className="hover:bg-accent/50">
-              <LogOut className="h-4 w-4 mr-1" />
-              Logout
+              <LogOut className="size-4" />
+              <span className="sr-only">Logout</span>
             </Button>
           </form>
         </div>

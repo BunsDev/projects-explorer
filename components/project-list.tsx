@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -331,54 +332,55 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
         </div>
       </div>
 
-      {/* Category Filter Tabs — Vercel-style underline */}
+      {/* Category filter — glass pills */}
       {categories.length > 0 && (
-        <div className="border-b border-border">
-          <nav className="flex gap-6 -mb-px" aria-label="Project categories">
-            <button
-              type="button"
-              onClick={() => setSelectedCategoryFilter(null)}
-              className={cn(
-                "pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                selectedCategoryFilter === null
-                  ? "text-foreground border-primary"
-                  : "text-muted-foreground border-transparent hover:text-foreground"
-              )}
-            >
-              All ({projects.length})
-            </button>
-            {categories.map((category) => {
-              const count = projects.filter((p) => p.categoryId === category.id).length
-              const isSelected = selectedCategoryFilter === category.id
-              return (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => setSelectedCategoryFilter(category.id)}
-                  className={cn(
-                    "pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                    isSelected
-                      ? "text-foreground border-primary"
-                      : "text-muted-foreground border-transparent hover:text-foreground"
-                  )}
-                >
-                  {category.name} ({count})
-                </button>
-              )
-            })}
-            <button
-              type="button"
-              onClick={() => setSelectedCategoryFilter("uncategorized")}
-              className={cn(
-                "pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                selectedCategoryFilter === "uncategorized"
-                  ? "text-foreground border-primary"
-                  : "text-muted-foreground border-transparent hover:text-foreground"
-              )}
-            >
-              Uncategorized ({projects.filter((p) => !p.categoryId).length})
-            </button>
-          </nav>
+        <div className="flex flex-wrap gap-2" aria-label="Project categories">
+          <button
+            type="button"
+            onClick={() => setSelectedCategoryFilter(null)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+              "glass-pill",
+              selectedCategoryFilter === null
+                ? "text-foreground ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            All ({projects.length})
+          </button>
+          {categories.map((category) => {
+            const count = projects.filter((p) => p.categoryId === category.id).length
+            const isSelected = selectedCategoryFilter === category.id
+            return (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => setSelectedCategoryFilter(category.id)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+                  "glass-pill",
+                  isSelected
+                    ? "text-foreground ring-1 ring-border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {category.name} ({count})
+              </button>
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => setSelectedCategoryFilter("uncategorized")}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+              "glass-pill",
+              selectedCategoryFilter === "uncategorized"
+                ? "text-foreground ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Uncategorized ({projects.filter((p) => !p.categoryId).length})
+          </button>
         </div>
       )}
 
@@ -411,7 +413,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
             <p className="mt-2 text-sm text-muted-foreground text-center max-w-sm">
               Create your first project to start organizing files
             </p>
-            <Button className="mt-6 glow-hover" onClick={() => setIsCreateOpen(true)}>
+            <Button variant="glass" className="mt-6" onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Project
             </Button>
@@ -465,18 +467,12 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
               <CardContent>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   {project.categoryName && (
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                        getCategoryColorClasses(project.categoryColor).bg,
-                        getCategoryColorClasses(project.categoryColor).text
-                      )}
-                    >
+                    <Badge variant="glass">
                       {project.categoryName}
-                    </span>
+                    </Badge>
                   )}
                   {project.deployedUrl && (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <Globe className="h-3 w-3" />
                       URL
                     </span>

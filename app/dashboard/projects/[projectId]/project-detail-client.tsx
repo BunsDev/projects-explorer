@@ -22,7 +22,7 @@ import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { FolderTree } from "@/components/folder-tree"
 import { FileGrid } from "@/components/file-grid"
 import { FileManager } from "@/components/file-manager"
-import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X } from "lucide-react"
+import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube } from "lucide-react"
 import { getFilesAction, updateProjectDeployedUrlAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree" // Import GitHubFileTree component
 
@@ -71,6 +71,26 @@ type TreeFile = {
   mimeType: string
   fileSize: number
   blobUrl: string
+}
+
+/** Extract YouTube video ID from youtube.com or youtu.be URLs, or null if not a YouTube URL. */
+function getYouTubeVideoId(url: string): string | null {
+  if (!url?.trim()) return null
+  try {
+    const u = new URL(url.trim())
+    const host = u.hostname.replace(/^www\./, "")
+    if (host === "youtube.com") {
+      const v = u.searchParams.get("v")
+      return v || null
+    }
+    if (host === "youtu.be") {
+      const id = u.pathname.slice(1).split("/")[0]
+      return id || null
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 interface ProjectDetailClientProps {
@@ -201,14 +221,14 @@ export function ProjectDetailClient({
             <Dialog open={isEditingUrl} onOpenChange={setIsEditingUrl}>
               <DialogTrigger asChild>
                 {deployedUrl ? (
-                  <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                    <Globe className="h-4 w-4 text-green-500" />
-                    Preview
+                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
+                    <Globe className="size-4" />
+                    <span className="sr-only">Preview</span>
                   </Button>
                 ) : (
-                  <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                    <Globe className="h-4 w-4" />
-                    Add Preview URL
+                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
+                    <Globe className="size-4" />
+                    <span className="sr-only">Add Preview URL</span>
                   </Button>
                 )}
               </DialogTrigger>
@@ -285,66 +305,81 @@ export function ProjectDetailClient({
             {deployedUrl && (
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() => window.open(deployedUrl, "_blank")}
               >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open Live
+                <ExternalLink className="size-4" />
+                <span className="sr-only">Open Live Preview</span>
               </Button>
             )}
 
-            <Button asChild>
-              <Link
-                href={`/dashboard/projects/${project.id}/upload${currentFolderId ? `?folder=${currentFolderId}` : ""}`}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Files
-              </Link>
-            </Button>
+            {currentFolderId && (
+              <Button variant="glass" asChild>
+                <Link href={`/dashboard/projects/${project.id}/upload${currentFolderId ? `?folder=${currentFolderId}` : ""}`}>
+                  <Upload className="size-4" />
+                  <span className="sr-only">Upload Files</span>
+                </Link></Button>
+            )}
           </div>
         </div>
 
-        {/* Deployed Preview iframe */}
-        {deployedUrl && (
-          <Card className="mb-4">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 -my-4">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Globe className="size-4 text-green-500" />
-                Live Preview
-              </CardTitle>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => window.open(deployedUrl, "_blank")}
-                  className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
-                >
-                  <ExternalLink className="size-4" />
-                  <span className="sr-only">Open in New Tab</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsEditingUrl(true)}
-                  className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
-                >
-                  <Settings2 className="size-4" />
-                  <span className="sr-only">Edit URL</span>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="relative w-full overflow-hidden rounded-b-lg border-t bg-muted/30" style={{ height: "524px" }}>
-                <iframe
-                  src={deployedUrl}
-                  className="flex-1 min-h-screen-full h-full w-full border-0"
-                  title="Deployed Preview"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Deployed Preview iframe or YouTube widget */}
+        {deployedUrl && (() => {
+          const youtubeVideoId = getYouTubeVideoId(deployedUrl)
+          const isYouTube = !!youtubeVideoId
+          const embedSrc = isYouTube
+            ? `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=0`
+            : deployedUrl
+          return (
+            <Card className="mb-4">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 -my-4">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  {isYouTube ? (
+                    <Youtube className="size-4 text-red-500" />
+                  ) : (
+                    <Globe className="size-4 text-green-500" />
+                  )}
+                  Live Preview
+                  {isYouTube && (
+                    <span className="text-xs font-normal text-muted-foreground">YouTube</span>
+                  )}
+                </CardTitle>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => window.open(deployedUrl, "_blank")}
+                    className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
+                  >
+                    <ExternalLink className="size-4" />
+                    <span className="sr-only">Open in New Tab</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setIsEditingUrl(true)}
+                    className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
+                  >
+                    <Settings2 className="size-4" />
+                    <span className="sr-only">Edit URL</span>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="relative w-full overflow-hidden rounded-b-lg border-t bg-muted/30" style={{ height: "524px" }}>
+                  <iframe
+                    src={embedSrc}
+                    className="h-full w-full border-0"
+                    title={isYouTube ? "YouTube video" : "Deployed Preview"}
+                    allow={isYouTube ? "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" : undefined}
+                    allowFullScreen={isYouTube}
+                    sandbox={isYouTube ? undefined : "allow-scripts allow-same-origin allow-forms allow-popups"}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })()}
 
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "tree")} className="space-y-4">
           <TabsList>

@@ -62,10 +62,6 @@
   --glass-border: oklch(1 0 0 / 40%);
   --glass-blur: 20px;
 
-  /* Gradient colors */
-  --gradient-start: oklch(0.95 0.03 280);
-  --gradient-mid: oklch(0.97 0.02 240);
-  --gradient-end: oklch(0.96 0.03 200);
 }
 
 .dark {
@@ -125,10 +121,6 @@
   --glass-border: oklch(1 0 0 / 15%);
   --glass-blur: 24px;
 
-  /* Gradient colors */
-  --gradient-start: oklch(0.11 0 0);
-  --gradient-mid: oklch(0.10 0 0);
-  --gradient-end: oklch(0.12 0 0);
 }
 
 @theme inline {
@@ -198,8 +190,7 @@
   body {
     @apply text-foreground;
     letter-spacing: var(--tracking-normal);
-    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-mid) 50%, var(--gradient-end) 100%);
-    background-attachment: fixed;
+    background: var(--background);
     min-height: 100vh;
   }
 }
@@ -232,12 +223,13 @@
     background: oklch(0.16 0 0 / 40%);
   }
 
-  /* Gradient text */
-  .gradient-text {
-    background: linear-gradient(135deg, oklch(0.55 0.2 265) 0%, oklch(0.6 0.22 290) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  /* Glass pill (badges, tags) */
+  .glass-pill {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 9999px;
   }
 
   /* Smooth transitions for interactive elements */
@@ -259,51 +251,24 @@
     box-shadow: 0 8px 32px -8px oklch(0 0 0 / 40%);
   }
 
-  /* Glow effect on hover */
+  /* Glass-style hover for buttons (no colored glow) */
   .glow-hover {
-    transition: box-shadow 0.3s ease;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
   .glow-hover:hover {
-    box-shadow: 0 0 24px -4px oklch(0.55 0.2 265 / 40%);
+    box-shadow: 0 4px 20px -4px oklch(0 0 0 / 25%);
   }
 
-  /* Animated gradient background */
-  .animated-gradient {
-    background: linear-gradient(-45deg, 
-      oklch(0.95 0.04 280), 
-      oklch(0.97 0.03 240), 
-      oklch(0.96 0.04 200),
-      oklch(0.95 0.03 320)
-    );
-    background-size: 400% 400%;
-    animation: gradient-shift 15s ease infinite;
+  .dark .glow-hover:hover {
+    box-shadow: 0 4px 20px -4px oklch(0 0 0 / 40%);
   }
 
-  @keyframes gradient-shift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-
-  .dark .animated-gradient {
-    background: linear-gradient(-45deg, 
-      oklch(0.11 0 0), 
-      oklch(0.10 0 0), 
-      oklch(0.12 0 0),
-      oklch(0.11 0 0)
-    );
-    background-size: 400% 400%;
-  }
-
-  /* Stat card icon background */
+  /* Stat card icon background – glass, no gradient */
   .stat-icon-bg {
-    background: linear-gradient(135deg, oklch(0.55 0.2 265 / 15%) 0%, oklch(0.6 0.22 290 / 15%) 100%);
-    border: 1px solid oklch(0.55 0.2 265 / 20%);
-  }
-
-  .dark .stat-icon-bg {
-    background: linear-gradient(135deg, oklch(0.7 0.18 265 / 20%) 0%, oklch(0.7 0.2 290 / 20%) 100%);
-    border: 1px solid oklch(0.7 0.18 265 / 25%);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
   }
 }
