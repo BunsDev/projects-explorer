@@ -331,52 +331,54 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
         </div>
       </div>
 
-      {/* Category Filter Tabs */}
+      {/* Category Filter Tabs — Vercel-style underline */}
       {categories.length > 0 && (
-        <div className="glass rounded-xl p-1.5 inline-flex flex-wrap items-center gap-1">
-          <Button
-            variant={selectedCategoryFilter === null ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setSelectedCategoryFilter(null)}
-            className={cn(
-              "rounded-lg",
-              selectedCategoryFilter === null && "shadow-md"
-            )}
-          >
-            All ({projects.length})
-          </Button>
-          {categories.map((category) => {
-            const colorClasses = getCategoryColorClasses(category.color)
-            const count = projects.filter((p) => p.categoryId === category.id).length
-            return (
-              <Button
-                key={category.id}
-                variant={selectedCategoryFilter === category.id ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setSelectedCategoryFilter(category.id)}
-                className={cn(
-                  "rounded-lg",
-                  selectedCategoryFilter === category.id && "shadow-md",
-                  selectedCategoryFilter !== category.id && colorClasses.bg,
-                  selectedCategoryFilter !== category.id && colorClasses.text
-                )}
-              >
-                {category.name} ({count})
-              </Button>
-            )
-          })}
-          <Button
-            variant={selectedCategoryFilter === "uncategorized" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setSelectedCategoryFilter("uncategorized")}
-            className={cn(
-              "rounded-lg",
-              selectedCategoryFilter === "uncategorized" && "shadow-md",
-              selectedCategoryFilter !== "uncategorized" && "text-muted-foreground"
-            )}
-          >
-            Uncategorized ({projects.filter((p) => !p.categoryId).length})
-          </Button>
+        <div className="border-b border-border">
+          <nav className="flex gap-6 -mb-px" aria-label="Project categories">
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryFilter(null)}
+              className={cn(
+                "pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                selectedCategoryFilter === null
+                  ? "text-foreground border-primary"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
+              )}
+            >
+              All ({projects.length})
+            </button>
+            {categories.map((category) => {
+              const count = projects.filter((p) => p.categoryId === category.id).length
+              const isSelected = selectedCategoryFilter === category.id
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategoryFilter(category.id)}
+                  className={cn(
+                    "pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    isSelected
+                      ? "text-foreground border-primary"
+                      : "text-muted-foreground border-transparent hover:text-foreground"
+                  )}
+                >
+                  {category.name} ({count})
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryFilter("uncategorized")}
+              className={cn(
+                "pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                selectedCategoryFilter === "uncategorized"
+                  ? "text-foreground border-primary"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
+              )}
+            >
+              Uncategorized ({projects.filter((p) => !p.categoryId).length})
+            </button>
+          </nav>
         </div>
       )}
 

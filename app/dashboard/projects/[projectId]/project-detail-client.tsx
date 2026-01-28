@@ -96,7 +96,7 @@ export function ProjectDetailClient({
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "tree">("tree")
-  
+
   // Deployed URL state
   const [deployedUrl, setDeployedUrl] = useState(project.deployedUrl || "")
   const [isEditingUrl, setIsEditingUrl] = useState(false)
@@ -113,9 +113,9 @@ export function ProjectDetailClient({
   const handleSaveDeployedUrl = async () => {
     setIsSavingUrl(true)
     setUrlError(null)
-    
+
     const result = await updateProjectDeployedUrlAction(project.id, urlInput || null)
-    
+
     if (result.success) {
       setDeployedUrl(urlInput)
       setIsEditingUrl(false)
@@ -191,9 +191,9 @@ export function ProjectDetailClient({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen mx-auto max-w-screen-2xl w-full bg-background">
       <DashboardHeader title={project.name ?? "Project"} />
-      <main className="container px-4 sm:px-6 py-6">
+      <main className="mx-auto px-4 sm:px-6 py-6 max-w-screen-2xl w-full">
         <div className="mb-6 flex items-center justify-between">
           <BreadcrumbNav items={getBreadcrumbPath()} />
           <div className="flex items-center gap-2">
@@ -306,35 +306,38 @@ export function ProjectDetailClient({
 
         {/* Deployed Preview iframe */}
         {deployedUrl && (
-          <Card className="mb-6">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="mb-4">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 -my-4">
               <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Globe className="h-4 w-4 text-green-500" />
+                <Globe className="size-4 text-green-500" />
                 Live Preview
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="outline"
+                  size="icon"
                   onClick={() => window.open(deployedUrl, "_blank")}
+                  className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
                 >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open in New Tab
+                  <ExternalLink className="size-4" />
+                  <span className="sr-only">Open in New Tab</span>
                 </Button>
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="outline"
+                  size="icon"
                   onClick={() => setIsEditingUrl(true)}
+                  className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
                 >
-                  <Settings2 className="h-4 w-4" />
+                  <Settings2 className="size-4" />
+                  <span className="sr-only">Edit URL</span>
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="relative w-full overflow-hidden rounded-b-lg border-t bg-muted/30" style={{ height: "500px" }}>
+              <div className="relative w-full overflow-hidden rounded-b-lg border-t bg-muted/30" style={{ height: "524px" }}>
                 <iframe
                   src={deployedUrl}
-                  className="h-full w-full border-0"
+                  className="flex-1 min-h-screen-full h-full w-full border-0"
                   title="Deployed Preview"
                   sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                 />
