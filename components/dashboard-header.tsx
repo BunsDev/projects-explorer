@@ -16,9 +16,9 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
   const pathname = usePathname()
   const isUploadPage = pathname === "/dashboard/upload"
   return (
-    <header className="glass-header rounded-b-2xl px-2 py-1.5 sticky top-0 z-50 w-full mx-auto">
+    <header className="glass-header rounded-b-2xl px-4 sm:px-6 py-1.5 sticky top-0 z-50 w-full mx-auto">
 
-      <div className="mx-auto px-4 max-w-screen-2xl w-full mx-auto h-10 flex items-center gap-3 text-lg font-semibold justify-between">
+      <div className="mx-auto max-w-screen-2xl w-full h-10 flex items-center gap-3 text-lg font-semibold justify-between">
         <div className="flex items-center gap-3">
           {/* <Image src="/icon.svg" className="size-9 aspect-square object-contain" alt="Explorer" width={36} height={36} /> */}
           <Link href="/" className="hover:underline text-primary">Home</Link> / <Link href="/dashboard" className="hover:underline text-foreground">{title ?? "Dashboard"}</Link>
