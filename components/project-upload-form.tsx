@@ -21,6 +21,9 @@ import { Upload, X, FileArchive, FileText, FileImage, File, CheckCircle2, Copy, 
 import { uploadFileAction } from "@/app/dashboard/actions"
 import { cn } from "@/lib/utils"
 
+// Filenames without extension that are allowed (e.g. Makefile)
+const ALLOWED_FILENAMES_NO_EXT = ["Makefile", "makefile", "GNUmakefile"]
+
 // Comprehensive list of supported file extensions
 export const PROJECT_UPLOAD_SUPPORTED_EXTENSIONS = [
   // Archives
@@ -37,6 +40,8 @@ export const PROJECT_UPLOAD_SUPPORTED_EXTENSIONS = [
   ".css", ".scss", ".sass", ".less",
   // Code - Other
   ".html", ".htm", ".vue", ".svelte",
+  // Build / Make
+  ".mk", ".mak",
   // Config files
   ".lock", ".env", ".gitignore", ".npmrc", ".nvmrc",
   // Shell/scripts
@@ -213,9 +218,15 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
       return `${file.name}: File size (${formatBytes(file.size)}) exceeds the 10MB limit`
     }
 
+    // Allow Makefile / makefile / GNUmakefile (no extension)
+    if (ALLOWED_FILENAMES_NO_EXT.includes(file.name)) {
+      return null
+    }
+
     const ext = `.${file.name.split(".").pop()?.toLowerCase()}`
     if (!PROJECT_UPLOAD_SUPPORTED_EXTENSIONS.includes(ext)) {
-      return `${file.name}: Unsupported file type`
+      const extLabel = ext === "." ? "no extension" : `extension "${ext}"`
+      return `${file.name}: Unsupported file type — ${extLabel} is not in the allowed list`
     }
 
     return null
@@ -248,13 +259,14 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
       }
     }
 
-    // Build status message
+    // Build status message — show all errors in full and make unsupported types clear
     const messages: string[] = []
     if (excludedCount > 0) {
       messages.push(`${excludedCount} file${excludedCount !== 1 ? "s" : ""} excluded (node_modules or hidden files)`)
     }
     if (errors.length > 0) {
-      messages.push(errors.slice(0, 3).join("\n") + (errors.length > 3 ? `\n...and ${errors.length - 3} more errors` : ""))
+      messages.push("The following files were not included:")
+      messages.push(errors.join("\n"))
     }
 
     if (messages.length > 0) {
@@ -483,7 +495,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
                     <X className="h-5 w-5 text-destructive" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{result.filename}</p>
-                      <p className="text-xs text-destructive">{result.error}</p>
+                      <p className="text-xs text-destructive whitespace-pre-wrap break-words">{result.error}</p>
                     </div>
                   </>
                 )}
@@ -662,7 +674,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
 
           {/* Error */}
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive whitespace-pre-wrap max-h-64 overflow-y-auto">
               {error}
             </div>
           )}

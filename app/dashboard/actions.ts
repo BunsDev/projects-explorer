@@ -126,6 +126,13 @@ const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> 
   sh: { mimeType: "text/x-shellscript" },
   bash: { mimeType: "text/x-shellscript" },
   zsh: { mimeType: "text/x-shellscript" },
+
+  // Makefiles (filename with no extension: Makefile, makefile, GNUmakefile)
+  makefile: { mimeType: "text/x-makefile" },
+  gnumakefile: { mimeType: "text/x-makefile" },
+  // Makefile fragments with extension
+  mk: { mimeType: "text/x-makefile" },
+  mak: { mimeType: "text/x-makefile" },
 }
 
 function detectFileType(bytes: Uint8Array, filename: string): { valid: boolean; mimeType: string } {
@@ -968,7 +975,10 @@ export async function uploadFileAction(
   const { valid, mimeType } = detectFileType(bytes, file.name)
 
   if (!valid) {
-    return { success: false, error: "Invalid or unsupported file type. Supported formats include: images, documents, code files, configs, and archives." }
+    return {
+      success: false,
+      error: `Unsupported file type: "${file.name}". Supported formats include: images, documents, code files, configs, Makefile, and archives.`,
+    }
   }
 
   try {
@@ -1022,9 +1032,10 @@ export async function uploadFileAction(
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true, publicId }
-  } catch (error) {
-    console.error("Upload error:", error)
-    return { success: false, error: "Failed to upload file" }
+  } catch (err) {
+    console.error("Upload error:", err)
+    const message = err instanceof Error ? err.message : "Failed to upload file"
+    return { success: false, error: message }
   }
 }
 
