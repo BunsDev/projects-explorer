@@ -34,21 +34,25 @@ export function StatsCards({ totalFiles, totalSize, totalDownloads }: StatsCards
   ]
 
   return (
-    <div className="grid gap-4 md:grid-cols-3 mb-8">
+    <div className="grid gap-3 sm:grid-cols-3 mb-8">
       {stats.map((stat) => (
         <div
           key={stat.label}
-          className="glass rounded-2xl p-6 hover-lift transition-smooth"
+          className="group relative overflow-hidden rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-5 transition-[box-shadow,border-color] duration-200 hover:border-border/60 hover:shadow-sm"
         >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-medium text-muted-foreground">
-              {stat.label}
-            </span>
-            <div className="rounded-xl stat-icon-bg p-2.5">
-              <stat.icon className="h-4 w-4 text-primary" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {stat.label}
+              </p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+                {stat.value}
+              </p>
+            </div>
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-muted/30">
+              <stat.icon className="size-4 text-muted-foreground" strokeWidth={1.5} />
             </div>
           </div>
-          <div className="text-3xl font-bold tracking-tight">{stat.value}</div>
         </div>
       ))}
     </div>
