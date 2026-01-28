@@ -47,7 +47,7 @@ export default async function ProjectUploadPage({
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader />
+      <DashboardHeader title={project.name} />
       <main className="container py-6">
         <div className="mb-6">
           <BreadcrumbNav items={breadcrumbs} />

@@ -192,7 +192,7 @@ export function ProjectDetailClient({
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader />
+      <DashboardHeader title={project.name ?? "Project"} />
       <main className="container py-6">
         <div className="mb-6 flex items-center justify-between">
           <BreadcrumbNav items={getBreadcrumbPath()} />

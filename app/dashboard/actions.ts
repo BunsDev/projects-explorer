@@ -3,6 +3,7 @@
 import { clearSession, getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { db, sql, categories, projects, folders, files, downloadLogs, auditLogs } from "@/lib/db"
+import { hashSharePassword } from "@/lib/share-password"
 import { getClientIP, getUserAgent } from "@/lib/auth"
 import { put, del } from "@vercel/blob"
 import { nanoid } from "nanoid"
@@ -948,6 +949,7 @@ export async function uploadFileAction(
   const title = formData.get("title") as string
   const description = formData.get("description") as string
   const expiresAt = formData.get("expiresAt") as string
+  const sharePassword = (formData.get("sharePassword") as string)?.trim() || null
   const projectId = formData.get("projectId") as string
   const folderId = formData.get("folderId") as string
   const relativePath = formData.get("relativePath") as string
@@ -1015,6 +1017,15 @@ export async function uploadFileAction(
     // Generate unique public ID
     const publicId = nanoid(21)
 
+    // Optional share password: hash with salt (PBKDF2) – never store plain text
+    const sharePasswordFields =
+      sharePassword != null && sharePassword.length > 0
+        ? (() => {
+            const { hash, salt } = hashSharePassword(sharePassword)
+            return { sharePasswordHash: hash, sharePasswordSalt: salt }
+          })()
+        : { sharePasswordHash: null, sharePasswordSalt: null }
+
     // Save to database
     await db.insert(files).values({
       publicId,
@@ -1027,6 +1038,7 @@ export async function uploadFileAction(
       projectId,
       folderId: targetFolderId,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
+      ...sharePasswordFields,
     })
 
     revalidatePath("/dashboard")

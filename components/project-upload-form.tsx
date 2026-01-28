@@ -199,6 +199,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
   const [description, setDescription] = useState("")
   const [selectedFolderId, setSelectedFolderId] = useState<string>(initialFolderId || "root")
   const [expiresAt, setExpiresAt] = useState("")
+  const [sharePassword, setSharePassword] = useState("")
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null)
@@ -393,6 +394,9 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
       if (expiresAt) {
         formData.append("expiresAt", new Date(expiresAt).toISOString())
       }
+      if (sharePassword.trim()) {
+        formData.append("sharePassword", sharePassword)
+      }
 
       const result = await uploadFileAction(formData)
 
@@ -419,6 +423,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
     setQueuedFiles([])
     setDescription("")
     setExpiresAt("")
+    setSharePassword("")
     setResults([])
     setError(null)
   }
@@ -427,6 +432,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
     setQueuedFiles([])
     setDescription("")
     setExpiresAt("")
+    setSharePassword("")
     setResults([])
     setError(null)
   }
@@ -669,6 +675,22 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
             />
             <p className="text-xs text-muted-foreground">
               Leave empty for no expiration
+            </p>
+          </div>
+
+          {/* Share password (optional) */}
+          <div className="space-y-2">
+            <Label htmlFor="sharePassword">Share password (optional)</Label>
+            <Input
+              id="sharePassword"
+              type="password"
+              value={sharePassword}
+              onChange={(e) => setSharePassword(e.target.value)}
+              placeholder="Require password to download"
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              If set, anyone with the link must enter this password to download
             </p>
           </div>
 

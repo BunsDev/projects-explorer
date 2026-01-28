@@ -118,6 +118,8 @@ export const files = pgTable(
       onDelete: "set null",
     }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    sharePasswordHash: varchar("share_password_hash", { length: 128 }),
+    sharePasswordSalt: varchar("share_password_salt", { length: 64 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },

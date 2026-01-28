@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import '../styles/globals.css'
 
 import { Geist, Geist_Mono, Geist as Font_Geist, Geist_Mono as Font_Geist_Mono, Source_Serif_4 as Font_Source_Serif_4 } from 'next/font/google'
+import { ThemeProvider } from "@/components/theme-provider"
 
 // Initialize fonts
 const _geist = Font_Geist({ subsets: ['latin'], weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"] })
@@ -42,7 +43,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${_geist.className} ${_geistMono.className} ${_sourceSerif_4.className} antialiased`}>
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          {children}
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>
