@@ -18,7 +18,7 @@ export default async function HomePage() {
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-2">
               <Archive className="h-6 w-6" />
-              <span className="text-lg font-semibold">ZIP Manager</span>
+              <span className="text-lg font-semibold">Explorer</span>
             </div>
             <div className="flex items-center gap-2">
               <Link href="/setup">
@@ -41,10 +41,10 @@ export default async function HomePage() {
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="max-w-2xl text-center">
           <h1 className="text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl text-balance">
-            Simple, Secure ZIP File Sharing
+            Simple, Secure File Sharing
           </h1>
           <p className="mt-6 text-lg leading-8 text-zinc-600 text-pretty">
-            Upload ZIP files securely and share them with anyone via a direct download link.
+            Upload files securely and share them with anyone via a direct download link.
             No sign-up required for downloads.
           </p>
 

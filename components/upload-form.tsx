@@ -13,7 +13,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, FileArchive, X, AlertCircle, Check, Copy } from "lucide-react"
 import { uploadFileAction } from "@/app/dashboard/actions"
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+
+export const UPLOAD_SUPPORTED_EXTENSIONS = [
+  ".zip", ".tar", ".gz", ".7z",
+  ".pdf", ".doc", ".docx", ".txt", ".md", ".mdx", ".license",
+  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".heif", ".heic", ".webp", ".ico",
+  ".json", ".xml", ".csv", ".yaml", ".yml", ".toml", ".sql",
+  ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+  ".css", ".scss", ".sass", ".less",
+  ".html", ".htm", ".vue", ".svelte",
+  ".lock", ".env", ".gitignore", ".npmrc", ".nvmrc",
+  ".sh", ".bash", ".zsh",
+]
 
 export function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
@@ -34,14 +46,8 @@ export function UploadForm() {
       return
     }
 
-    if (!selectedFile.name.toLowerCase().endsWith(".zip")) {
-      setError("Please select a ZIP file")
-      setFile(null)
-      return
-    }
-
     if (selectedFile.size > MAX_FILE_SIZE) {
-      setError("File size exceeds 10MB limit")
+      setError("File size exceeds 100MB limit")
       setFile(null)
       return
     }
@@ -144,9 +150,9 @@ export function UploadForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload ZIP File</CardTitle>
+        <CardTitle>Upload File</CardTitle>
         <CardDescription>
-          Upload a ZIP file (max 10MB) to generate a shareable download link
+          Upload a file (max 100MB) to generate a shareable download link.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -160,11 +166,10 @@ export function UploadForm() {
 
           {/* File Drop Zone */}
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              file
-                ? "border-zinc-400 bg-zinc-50"
-                : "border-zinc-200 hover:border-zinc-300"
-            }`}
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${file
+              ? "border-zinc-400 bg-zinc-50"
+              : "border-zinc-200 hover:border-zinc-300"
+              }`}
           >
             {file ? (
               <div className="flex items-center justify-center gap-3">
@@ -186,12 +191,12 @@ export function UploadForm() {
             ) : (
               <label className="cursor-pointer block">
                 <Upload className="h-8 w-8 mx-auto mb-3 text-zinc-400" />
-                <p className="font-medium">Click to select a ZIP file</p>
-                <p className="text-sm text-zinc-500 mt-1">Maximum file size: 10MB</p>
+                <p className="font-medium">Click to select a file</p>
+                <p className="text-sm text-zinc-500 mt-1">Maximum file size: 100MB</p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".zip,application/zip"
+                  accept={UPLOAD_SUPPORTED_EXTENSIONS.join(",")}
                   onChange={handleFileChange}
                   className="hidden"
                   disabled={uploading}

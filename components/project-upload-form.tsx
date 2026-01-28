@@ -22,7 +22,7 @@ import { uploadFileAction } from "@/app/dashboard/actions"
 import { cn } from "@/lib/utils"
 
 // Comprehensive list of supported file extensions
-const SUPPORTED_EXTENSIONS = [
+export const PROJECT_UPLOAD_SUPPORTED_EXTENSIONS = [
   // Archives
   ".zip", ".tar", ".gz", ".7z",
   // Documents
@@ -43,7 +43,7 @@ const SUPPORTED_EXTENSIONS = [
   ".sh", ".bash", ".zsh",
 ]
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 // Allowed dotfiles with their predefined titles
 const ALLOWED_DOTFILES: Record<string, string> = {
@@ -214,7 +214,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
     }
 
     const ext = `.${file.name.split(".").pop()?.toLowerCase()}`
-    if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+    if (!PROJECT_UPLOAD_SUPPORTED_EXTENSIONS.includes(ext)) {
       return `${file.name}: Unsupported file type`
     }
 
@@ -529,7 +529,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
               </div>
               <p className="mt-4 font-medium">Drop files or folders here, or click to browse</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Max 10MB per file. Supports images, documents, code, configs, and more.
+                Max 100MB per file. Supports images, documents, code, configs, and more.
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 node_modules and hidden files are automatically excluded (except .env.example, .gitignore)
@@ -537,7 +537,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
               <input
                 type="file"
                 onChange={handleFileInput}
-                accept={SUPPORTED_EXTENSIONS.join(",")}
+                accept={PROJECT_UPLOAD_SUPPORTED_EXTENSIONS.join(",")}
                 multiple
                 className="absolute inset-0 cursor-pointer opacity-0"
               />

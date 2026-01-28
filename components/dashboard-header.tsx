@@ -14,7 +14,7 @@ export function DashboardHeader() {
             <div className="rounded-xl stat-icon-bg p-2">
               <Archive className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-lg font-semibold gradient-text">ZIP Manager</span>
+            <span className="text-lg font-semibold gradient-text">Explorer</span>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/dashboard/upload">
