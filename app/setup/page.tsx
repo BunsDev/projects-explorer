@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Archive,
   Check,
@@ -17,7 +18,9 @@ import {
   Rocket,
   Server,
   Shield,
+  Settings,
 } from "lucide-react"
+import { GlobalShareSettingsCard } from "@/components/share-settings"
 
 export default function SetupPage() {
   const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({})
@@ -62,6 +65,32 @@ export default function SetupPage() {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 max-w-4xl py-8 sm:py-12">
+        <Tabs defaultValue="setup" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="setup" className="flex items-center gap-2">
+              <Rocket className="h-4 w-4" />
+              Setup Guide
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Global Settings
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="settings" className="space-y-6">
+            <div className="text-center mb-8">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-3">
+                Global Settings
+              </h1>
+              <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
+                Configure global defaults for your Projects Explorer instance.
+              </p>
+            </div>
+
+            <GlobalShareSettingsCard />
+          </TabsContent>
+
+          <TabsContent value="setup">
         {/* Hero */}
         <div className="text-center mb-8 sm:mb-12">
           <Badge variant="secondary" className="mb-3 sm:mb-4">
@@ -457,6 +486,8 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
             </Link>
           </div>
         </div>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Footer */}

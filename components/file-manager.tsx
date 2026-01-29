@@ -62,7 +62,9 @@ import {
   X,
   Move,
   GripVertical,
+  Settings2,
 } from "lucide-react"
+import { FileShareSettingsModal } from "@/components/share-settings"
 import {
   createFolderAction,
   renameFolderAction,
@@ -478,6 +480,10 @@ export function FileManager({
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
+  // File share settings modal state
+  const [shareSettingsFileId, setShareSettingsFileId] = useState<string | null>(null)
+  const [shareSettingsFileName, setShareSettingsFileName] = useState<string>("")
+
   // Build tree
   const tree = buildTree(localFolders, localFiles)
 
@@ -804,6 +810,15 @@ export function FileManager({
                     Open in New Tab
                   </a>
                 </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
+                    setShareSettingsFileId(node.file!.id)
+                    setShareSettingsFileName(node.file!.originalFilename)
+                  }}
+                >
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  Share Settings
+                </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem
                   className="text-destructive"
@@ -1038,6 +1053,22 @@ export function FileManager({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* File Share Settings Modal */}
+      {shareSettingsFileId && (
+        <FileShareSettingsModal
+          fileId={shareSettingsFileId}
+          fileName={shareSettingsFileName}
+          open={!!shareSettingsFileId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShareSettingsFileId(null)
+              setShareSettingsFileName("")
+            }
+          }}
+          onSave={onDataChange}
+        />
+      )}
     </div>
   )
 }

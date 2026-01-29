@@ -2,7 +2,7 @@
 
 import { clearSession, getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { db, sql, categories, projects, folders, files, downloadLogs, auditLogs } from "@/lib/db"
+import { db, sql, categories, projects, folders, files, downloadLogs, auditLogs, shareSettings } from "@/lib/db"
 import { hashSharePassword } from "@/lib/share-password"
 import { getClientIP, getUserAgent } from "@/lib/auth"
 import { put, del } from "@vercel/blob"
@@ -1388,5 +1388,507 @@ export async function deleteFileAction(
   } catch (error) {
     console.error("Delete error:", error)
     return { success: false, error: "Failed to delete file" }
+  }
+}
+
+// ============ SHARE SETTINGS ACTIONS ============
+
+export type GlobalShareSettings = {
+  id: string
+  sharingEnabled: boolean
+  passwordRequired: boolean
+  defaultExpiryDays: number | null
+  downloadLimitPerIp: number | null
+  downloadLimitWindowMinutes: number | null
+}
+
+export type ProjectShareSettings = {
+  shareEnabled: boolean | null
+  sharePasswordRequired: boolean | null
+  shareExpiryDays: number | null
+  shareDownloadLimitPerIp: number | null
+  shareDownloadLimitWindowMinutes: number | null
+}
+
+export type FileShareSettings = {
+  shareEnabled: boolean | null
+  expiresAt: Date | null
+  hasPassword: boolean
+  downloadLimitPerIp: number | null
+  downloadLimitWindowMinutes: number | null
+}
+
+export type EffectiveShareSettings = {
+  sharingEnabled: boolean
+  passwordRequired: boolean
+  expiryDays: number | null
+  downloadLimitPerIp: number | null
+  downloadLimitWindowMinutes: number | null
+}
+
+/**
+ * Get or create global share settings (single row).
+ * Creates default settings if none exist.
+ */
+export async function getGlobalShareSettingsAction(): Promise<{
+  success: boolean
+  settings?: GlobalShareSettings
+  error?: string
+}> {
+  try {
+    let result = await db.select().from(shareSettings).limit(1)
+
+    // Create default settings if none exist
+    if (result.length === 0) {
+      const inserted = await db
+        .insert(shareSettings)
+        .values({
+          sharingEnabled: true,
+          passwordRequired: false,
+          defaultExpiryDays: null,
+          downloadLimitPerIp: null,
+          downloadLimitWindowMinutes: 60,
+        })
+        .returning()
+      result = inserted
+    }
+
+    const settings = result[0]
+    return {
+      success: true,
+      settings: {
+        id: settings.id,
+        sharingEnabled: settings.sharingEnabled,
+        passwordRequired: settings.passwordRequired,
+        defaultExpiryDays: settings.defaultExpiryDays,
+        downloadLimitPerIp: settings.downloadLimitPerIp,
+        downloadLimitWindowMinutes: settings.downloadLimitWindowMinutes,
+      },
+    }
+  } catch (error) {
+    console.error("Get global share settings error:", error)
+    return { success: false, error: "Failed to fetch share settings" }
+  }
+}
+
+/**
+ * Update global share settings.
+ * These are hard limits - project/file settings can only be more restrictive.
+ */
+export async function updateGlobalShareSettingsAction(
+  settings: Partial<Omit<GlobalShareSettings, "id">>
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get or create the settings row
+    let existing = await db.select({ id: shareSettings.id }).from(shareSettings).limit(1)
+
+    if (existing.length === 0) {
+      await db.insert(shareSettings).values({
+        sharingEnabled: settings.sharingEnabled ?? true,
+        passwordRequired: settings.passwordRequired ?? false,
+        defaultExpiryDays: settings.defaultExpiryDays ?? null,
+        downloadLimitPerIp: settings.downloadLimitPerIp ?? null,
+        downloadLimitWindowMinutes: settings.downloadLimitWindowMinutes ?? 60,
+      })
+    } else {
+      await db
+        .update(shareSettings)
+        .set({
+          ...settings,
+          updatedAt: new Date(),
+        })
+        .where(eq(shareSettings.id, existing[0].id))
+    }
+
+    // SECURITY: Audit log for settings change
+    await logAuditAction(
+      "update",
+      "share_settings",
+      "global",
+      "Global Share Settings",
+      JSON.stringify(settings)
+    )
+
+    revalidatePath("/setup")
+    revalidatePath("/dashboard")
+    return { success: true }
+  } catch (error) {
+    console.error("Update global share settings error:", error)
+    return { success: false, error: "Failed to update share settings" }
+  }
+}
+
+/**
+ * Get project share settings.
+ */
+export async function getProjectShareSettingsAction(
+  projectId: string
+): Promise<{
+  success: boolean
+  settings?: ProjectShareSettings
+  error?: string
+}> {
+  try {
+    const result = await db
+      .select({
+        shareEnabled: projects.shareEnabled,
+        sharePasswordRequired: projects.sharePasswordRequired,
+        shareExpiryDays: projects.shareExpiryDays,
+        shareDownloadLimitPerIp: projects.shareDownloadLimitPerIp,
+        shareDownloadLimitWindowMinutes: projects.shareDownloadLimitWindowMinutes,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
+    if (result.length === 0) {
+      return { success: false, error: "Project not found" }
+    }
+
+    return { success: true, settings: result[0] }
+  } catch (error) {
+    console.error("Get project share settings error:", error)
+    return { success: false, error: "Failed to fetch project share settings" }
+  }
+}
+
+/**
+ * Update project share settings.
+ * null values mean "inherit from global".
+ */
+export async function updateProjectShareSettingsAction(
+  projectId: string,
+  settings: Partial<ProjectShareSettings>
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    await db
+      .update(projects)
+      .set({
+        shareEnabled: settings.shareEnabled,
+        sharePasswordRequired: settings.sharePasswordRequired,
+        shareExpiryDays: settings.shareExpiryDays,
+        shareDownloadLimitPerIp: settings.shareDownloadLimitPerIp,
+        shareDownloadLimitWindowMinutes: settings.shareDownloadLimitWindowMinutes,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, projectId))
+
+    // SECURITY: Audit log for settings change
+    await logAuditAction(
+      "update",
+      "share_settings",
+      projectId,
+      "Project Share Settings",
+      JSON.stringify(settings)
+    )
+
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Update project share settings error:", error)
+    return { success: false, error: "Failed to update project share settings" }
+  }
+}
+
+/**
+ * Get file share settings.
+ */
+export async function getFileShareSettingsAction(
+  fileId: string
+): Promise<{
+  success: boolean
+  settings?: FileShareSettings
+  publicId?: string
+  error?: string
+}> {
+  try {
+    const result = await db
+      .select({
+        publicId: files.publicId,
+        shareEnabled: files.shareEnabled,
+        expiresAt: files.expiresAt,
+        sharePasswordHash: files.sharePasswordHash,
+        downloadLimitPerIp: files.downloadLimitPerIp,
+        downloadLimitWindowMinutes: files.downloadLimitWindowMinutes,
+      })
+      .from(files)
+      .where(eq(files.id, fileId))
+      .limit(1)
+
+    if (result.length === 0) {
+      return { success: false, error: "File not found" }
+    }
+
+    const file = result[0]
+    return {
+      success: true,
+      publicId: file.publicId,
+      settings: {
+        shareEnabled: file.shareEnabled,
+        expiresAt: file.expiresAt,
+        hasPassword: Boolean(file.sharePasswordHash),
+        downloadLimitPerIp: file.downloadLimitPerIp,
+        downloadLimitWindowMinutes: file.downloadLimitWindowMinutes,
+      },
+    }
+  } catch (error) {
+    console.error("Get file share settings error:", error)
+    return { success: false, error: "Failed to fetch file share settings" }
+  }
+}
+
+/**
+ * Update file share settings.
+ * null values mean "inherit from project/global".
+ */
+export async function updateFileShareSettingsAction(
+  fileId: string,
+  settings: {
+    shareEnabled?: boolean | null
+    expiresAt?: Date | null
+    sharePassword?: string | null // Empty string = remove password, null = no change
+    downloadLimitPerIp?: number | null
+    downloadLimitWindowMinutes?: number | null
+  }
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date(),
+    }
+
+    if (settings.shareEnabled !== undefined) {
+      updateData.shareEnabled = settings.shareEnabled
+    }
+    if (settings.expiresAt !== undefined) {
+      updateData.expiresAt = settings.expiresAt
+    }
+    if (settings.downloadLimitPerIp !== undefined) {
+      updateData.downloadLimitPerIp = settings.downloadLimitPerIp
+    }
+    if (settings.downloadLimitWindowMinutes !== undefined) {
+      updateData.downloadLimitWindowMinutes = settings.downloadLimitWindowMinutes
+    }
+
+    // Handle password changes
+    if (settings.sharePassword !== undefined) {
+      if (settings.sharePassword === null || settings.sharePassword === "") {
+        // Remove password
+        updateData.sharePasswordHash = null
+        updateData.sharePasswordSalt = null
+      } else {
+        // Set new password
+        const { hash, salt } = hashSharePassword(settings.sharePassword)
+        updateData.sharePasswordHash = hash
+        updateData.sharePasswordSalt = salt
+      }
+    }
+
+    const result = await db
+      .update(files)
+      .set(updateData)
+      .where(eq(files.id, fileId))
+      .returning({ projectId: files.projectId })
+
+    if (result.length > 0 && result[0].projectId) {
+      revalidatePath(`/dashboard/projects/${result[0].projectId}`)
+    }
+
+    // SECURITY: Audit log for settings change
+    await logAuditAction(
+      "update",
+      "share_settings",
+      fileId,
+      "File Share Settings",
+      JSON.stringify({ ...settings, sharePassword: settings.sharePassword ? "[REDACTED]" : settings.sharePassword })
+    )
+
+    return { success: true }
+  } catch (error) {
+    console.error("Update file share settings error:", error)
+    return { success: false, error: "Failed to update file share settings" }
+  }
+}
+
+/**
+ * Regenerate the share link (publicId) for a file.
+ * This invalidates the old share URL.
+ */
+export async function regenerateShareLinkAction(
+  fileId: string
+): Promise<{ success: boolean; publicId?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    const newPublicId = nanoid(21)
+
+    const result = await db
+      .update(files)
+      .set({
+        publicId: newPublicId,
+        updatedAt: new Date(),
+      })
+      .where(eq(files.id, fileId))
+      .returning({ projectId: files.projectId, title: files.title })
+
+    if (result.length === 0) {
+      return { success: false, error: "File not found" }
+    }
+
+    if (result[0].projectId) {
+      revalidatePath(`/dashboard/projects/${result[0].projectId}`)
+    }
+
+    // SECURITY: Audit log for link regeneration
+    await logAuditAction(
+      "regenerate_link",
+      "file",
+      fileId,
+      result[0].title || null,
+      JSON.stringify({ newPublicId })
+    )
+
+    return { success: true, publicId: newPublicId }
+  } catch (error) {
+    console.error("Regenerate share link error:", error)
+    return { success: false, error: "Failed to regenerate share link" }
+  }
+}
+
+/**
+ * Compute effective share settings for a file.
+ * Resolution order: global → project → file (most restrictive wins for limits).
+ * For boolean settings, inheritance is: file overrides project, project overrides global.
+ * But global is the hard limit - if global disables sharing, it's disabled everywhere.
+ */
+export async function getEffectiveShareSettingsAction(
+  fileId: string
+): Promise<{
+  success: boolean
+  settings?: EffectiveShareSettings
+  error?: string
+}> {
+  try {
+    // Get file with project info
+    const fileResult = await db
+      .select({
+        projectId: files.projectId,
+        shareEnabled: files.shareEnabled,
+        expiresAt: files.expiresAt,
+        sharePasswordHash: files.sharePasswordHash,
+        downloadLimitPerIp: files.downloadLimitPerIp,
+        downloadLimitWindowMinutes: files.downloadLimitWindowMinutes,
+      })
+      .from(files)
+      .where(eq(files.id, fileId))
+      .limit(1)
+
+    if (fileResult.length === 0) {
+      return { success: false, error: "File not found" }
+    }
+
+    const file = fileResult[0]
+
+    // Get global settings
+    const globalResult = await getGlobalShareSettingsAction()
+    if (!globalResult.success || !globalResult.settings) {
+      return { success: false, error: "Failed to fetch global settings" }
+    }
+    const global = globalResult.settings
+
+    // Get project settings if file belongs to a project
+    let project: ProjectShareSettings | null = null
+    if (file.projectId) {
+      const projectResult = await getProjectShareSettingsAction(file.projectId)
+      if (projectResult.success && projectResult.settings) {
+        project = projectResult.settings
+      }
+    }
+
+    // Resolve effective settings
+    // Global is the hard limit - if global disables, it's disabled
+    let sharingEnabled = global.sharingEnabled
+    if (sharingEnabled && project?.shareEnabled === false) {
+      sharingEnabled = false
+    }
+    if (sharingEnabled && file.shareEnabled === false) {
+      sharingEnabled = false
+    }
+
+    // Password: required if any level requires it (most restrictive)
+    let passwordRequired = global.passwordRequired
+    if (project?.sharePasswordRequired === true) {
+      passwordRequired = true
+    }
+    // File-level: has password if set, otherwise inherit requirement
+    const hasFilePassword = Boolean(file.sharePasswordHash)
+    if (!hasFilePassword && passwordRequired) {
+      // Password is required but file doesn't have one set
+      passwordRequired = true
+    } else if (hasFilePassword) {
+      passwordRequired = true
+    }
+
+    // Expiry: most restrictive (smallest) non-null value wins
+    let expiryDays = global.defaultExpiryDays
+    if (project?.shareExpiryDays !== null && project?.shareExpiryDays !== undefined) {
+      if (expiryDays === null || project.shareExpiryDays < expiryDays) {
+        expiryDays = project.shareExpiryDays
+      }
+    }
+    // File expiresAt is already a specific date, handled separately in the route
+
+    // Download limit: most restrictive (smallest) non-null value wins
+    let downloadLimitPerIp = global.downloadLimitPerIp
+    if (project?.shareDownloadLimitPerIp !== null && project?.shareDownloadLimitPerIp !== undefined) {
+      if (downloadLimitPerIp === null || project.shareDownloadLimitPerIp < downloadLimitPerIp) {
+        downloadLimitPerIp = project.shareDownloadLimitPerIp
+      }
+    }
+    if (file.downloadLimitPerIp !== null) {
+      if (downloadLimitPerIp === null || file.downloadLimitPerIp < downloadLimitPerIp) {
+        downloadLimitPerIp = file.downloadLimitPerIp
+      }
+    }
+
+    // Download window: use the most specific non-null value (file > project > global)
+    let downloadLimitWindowMinutes = global.downloadLimitWindowMinutes
+    if (project?.shareDownloadLimitWindowMinutes !== null && project?.shareDownloadLimitWindowMinutes !== undefined) {
+      downloadLimitWindowMinutes = project.shareDownloadLimitWindowMinutes
+    }
+    if (file.downloadLimitWindowMinutes !== null) {
+      downloadLimitWindowMinutes = file.downloadLimitWindowMinutes
+    }
+
+    return {
+      success: true,
+      settings: {
+        sharingEnabled,
+        passwordRequired,
+        expiryDays,
+        downloadLimitPerIp,
+        downloadLimitWindowMinutes,
+      },
+    }
+  } catch (error) {
+    console.error("Get effective share settings error:", error)
+    return { success: false, error: "Failed to compute effective settings" }
   }
 }

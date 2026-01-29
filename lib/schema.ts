@@ -12,6 +12,20 @@ import {
 import { relations } from "drizzle-orm"
 
 // ============================================================
+// Share Settings Table (Global - single row)
+// ============================================================
+export const shareSettings = pgTable("share_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sharingEnabled: boolean("sharing_enabled").notNull().default(true),
+  passwordRequired: boolean("password_required").notNull().default(false),
+  defaultExpiryDays: integer("default_expiry_days"), // null = no default expiry
+  downloadLimitPerIp: integer("download_limit_per_ip"), // null = no limit
+  downloadLimitWindowMinutes: integer("download_limit_window_minutes").default(60),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// ============================================================
 // Categories Table
 // ============================================================
 export const categories = pgTable(
@@ -44,6 +58,12 @@ export const projects = pgTable(
     categoryId: uuid("category_id").references(() => categories.id, {
       onDelete: "set null",
     }),
+    // Share settings overrides (null = use global default)
+    shareEnabled: boolean("share_enabled"), // null = inherit from global
+    sharePasswordRequired: boolean("share_password_required"), // null = inherit from global
+    shareExpiryDays: integer("share_expiry_days"), // null = inherit from global
+    shareDownloadLimitPerIp: integer("share_download_limit_per_ip"), // null = inherit from global
+    shareDownloadLimitWindowMinutes: integer("share_download_limit_window_minutes"), // null = inherit from global
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
@@ -120,6 +140,10 @@ export const files = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     sharePasswordHash: varchar("share_password_hash", { length: 128 }),
     sharePasswordSalt: varchar("share_password_salt", { length: 64 }),
+    // Share settings overrides (null = inherit from project/global)
+    shareEnabled: boolean("share_enabled"), // null = inherit; false = disable sharing for this file
+    downloadLimitPerIp: integer("download_limit_per_ip"), // null = inherit from project/global
+    downloadLimitWindowMinutes: integer("download_limit_window_minutes"), // null = inherit from project/global
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
@@ -177,6 +201,12 @@ export const downloadLogs = pgTable(
   (table) => ({
     fileIdIdx: index("idx_download_logs_file_id").on(table.fileId),
     downloadedAtIdx: index("idx_download_logs_downloaded_at").on(table.downloadedAt),
+    ipAddressIdx: index("idx_download_logs_ip_address").on(table.ipAddress),
+    fileIpTimeIdx: index("idx_download_logs_file_ip_time").on(
+      table.fileId,
+      table.ipAddress,
+      table.downloadedAt
+    ),
   })
 )
 
@@ -232,6 +262,9 @@ export const auditLogs = pgTable(
 // ============================================================
 // Type Exports
 // ============================================================
+export type ShareSetting = typeof shareSettings.$inferSelect
+export type NewShareSetting = typeof shareSettings.$inferInsert
+
 export type Category = typeof categories.$inferSelect
 export type NewCategory = typeof categories.$inferInsert
 

@@ -22,7 +22,8 @@ import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { FolderTree } from "@/components/folder-tree"
 import { FileGrid } from "@/components/file-grid"
 import { FileManager } from "@/components/file-manager"
-import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube } from "lucide-react"
+import { ProjectShareSettingsModal } from "@/components/share-settings"
+import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2 } from "lucide-react"
 import { getFilesAction, updateProjectDeployedUrlAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree" // Import GitHubFileTree component
 
@@ -123,6 +124,9 @@ export function ProjectDetailClient({
   const [urlInput, setUrlInput] = useState(project.deployedUrl || "")
   const [isSavingUrl, setIsSavingUrl] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
+
+  // Share settings modal state
+  const [isShareSettingsOpen, setIsShareSettingsOpen] = useState(false)
 
   // Refresh data when file manager changes data
   const handleDataChange = useCallback(() => {
@@ -313,6 +317,17 @@ export function ProjectDetailClient({
               </Button>
             )}
 
+            {/* Share Settings button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsShareSettingsOpen(true)}
+              className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
+            >
+              <Share2 className="size-4" />
+              <span className="hidden sm:inline">Share Settings</span>
+            </Button>
+
             {currentFolderId && (
               <Button variant="glass" asChild>
                 <Link href={`/dashboard/projects/${project.id}/upload${currentFolderId ? `?folder=${currentFolderId}` : ""}`}>
@@ -444,6 +459,15 @@ export function ProjectDetailClient({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Project Share Settings Modal */}
+        <ProjectShareSettingsModal
+          projectId={project.id}
+          projectName={project.name}
+          open={isShareSettingsOpen}
+          onOpenChange={setIsShareSettingsOpen}
+          onSave={handleDataChange}
+        />
       </main>
     </div>
   )

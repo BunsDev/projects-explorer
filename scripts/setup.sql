@@ -145,7 +145,41 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 -- ============================================================
--- PART 6: Indexes for Performance
+-- PART 6: Share Settings (Global defaults + overrides)
+-- ============================================================
+
+-- Global share settings (single row)
+CREATE TABLE IF NOT EXISTS share_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sharing_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  password_required BOOLEAN NOT NULL DEFAULT FALSE,
+  default_expiry_days INTEGER,                      -- null = no default expiry
+  download_limit_per_ip INTEGER,                    -- null = no limit
+  download_limit_window_minutes INTEGER DEFAULT 60,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Insert default global settings if none exist
+INSERT INTO share_settings (id, sharing_enabled, password_required)
+SELECT gen_random_uuid(), TRUE, FALSE
+WHERE NOT EXISTS (SELECT 1 FROM share_settings);
+
+-- Add project-level share settings overrides (null = inherit from global)
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_enabled BOOLEAN;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_password_required BOOLEAN;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_expiry_days INTEGER;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_download_limit_per_ip INTEGER;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_download_limit_window_minutes INTEGER;
+
+-- Add file-level share settings overrides (null = inherit from project/global)
+ALTER TABLE files ADD COLUMN IF NOT EXISTS share_enabled BOOLEAN;
+ALTER TABLE files ADD COLUMN IF NOT EXISTS download_limit_per_ip INTEGER;
+ALTER TABLE files ADD COLUMN IF NOT EXISTS download_limit_window_minutes INTEGER;
+-- Note: files already has share_password_hash, share_password_salt, and expires_at columns
+
+-- ============================================================
+-- PART 7: Indexes for Performance
 -- ============================================================
 
 -- Files indexes
@@ -164,6 +198,8 @@ CREATE INDEX IF NOT EXISTS idx_projects_category_id ON projects(category_id);
 -- Download logs indexes
 CREATE INDEX IF NOT EXISTS idx_download_logs_file_id ON download_logs(file_id);
 CREATE INDEX IF NOT EXISTS idx_download_logs_downloaded_at ON download_logs(downloaded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_download_logs_ip_address ON download_logs(ip_address);
+CREATE INDEX IF NOT EXISTS idx_download_logs_file_ip_time ON download_logs(file_id, ip_address, downloaded_at DESC);
 
 -- Sessions indexes
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
