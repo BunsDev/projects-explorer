@@ -10,22 +10,23 @@ type BreadcrumbItem = {
 
 export function BreadcrumbNav({ items }: { items: BreadcrumbItem[] }) {
   return (
-    <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+    <nav className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground min-w-0 flex-wrap">
       <Link
         href="/dashboard"
-        className="flex items-center gap-1 hover:text-foreground transition-colors"
+        className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0"
+        aria-label="Dashboard"
       >
-        <Home className="h-4 w-4" />
+        <Home className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
       </Link>
       {items.map((item, index) => (
-        <div key={index} className="flex items-center gap-1 truncate">
-          <ChevronRight className="h-4 w-4" />
+        <div key={index} className="flex items-center gap-1 min-w-0 max-w-full">
+          <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
           {item.href ? (
-            <Link href={item.href} className="hover:text-foreground transition-colors max-w-[100px] truncate block min-w-0">
+            <Link href={item.href} className="hover:text-foreground transition-colors max-w-[120px] sm:max-w-[180px] truncate block min-w-0">
               {item.label}
             </Link>
           ) : (
-            <span className="text-foreground font-medium">{item.label}</span>
+            <span className="text-foreground font-medium truncate block min-w-0">{item.label}</span>
           )}
         </div>
       ))}

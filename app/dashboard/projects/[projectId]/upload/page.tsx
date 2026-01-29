@@ -46,16 +46,16 @@ export default async function ProjectUploadPage({
   ]
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background max-w-screen-2xl w-full mx-auto">
       <DashboardHeader title={project.name} />
-      <main className="container px-4 sm:px-6 py-6">
-        <div className="mb-6">
+      <main className="w-full px-4 sm:px-6 py-6 sm:py-8">
+        <div className="mb-4 sm:mb-6">
           <BreadcrumbNav items={breadcrumbs} />
         </div>
 
-        <div className="mx-auto max-w-2xl">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight">Upload Files</h1>
+        <div className="mx-auto max-w-2xl w-full">
+          <div className="mb-4 sm:mb-6">
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Upload Files</h1>
             <p className="text-muted-foreground">
               Upload files to {folderName ? `"${folderName}"` : `"${project.name as string}"`}
             </p>

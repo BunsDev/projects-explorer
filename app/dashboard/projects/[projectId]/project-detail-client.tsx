@@ -213,10 +213,10 @@ export function ProjectDetailClient({
   return (
     <div className="min-h-screen mx-auto max-w-screen-2xl w-full bg-background">
       <DashboardHeader title={project.name ?? "Project"} />
-      <main className="mx-auto px-4 sm:px-6 py-6 max-w-screen-2xl w-full">
-        <div className="mb-6 flex items-center justify-between">
+      <main className="mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-screen-2xl w-full pb-4 sm:pb-8">
+        <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <BreadcrumbNav items={getBreadcrumbPath()} />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Deployed URL button/indicator */}
             <Dialog open={isEditingUrl} onOpenChange={setIsEditingUrl}>
               <DialogTrigger asChild>
@@ -366,7 +366,7 @@ export function ProjectDetailClient({
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="relative w-full overflow-hidden rounded-b-lg border-t bg-muted/30" style={{ height: "524px" }}>
+                <div className="relative w-full overflow-hidden rounded-b-lg border-t bg-muted/30 h-[280px] sm:h-[360px] md:h-[440px] lg:h-[524px]">
                   <iframe
                     src={embedSrc}
                     className="h-full w-full border-0"
@@ -382,14 +382,14 @@ export function ProjectDetailClient({
         })()}
 
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "tree")} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="tree" className="gap-2">
-              <FolderTreeIcon className="h-4 w-4" />
-              Code View
+          <TabsList className="w-full sm:w-auto grid grid-cols-2">
+            <TabsTrigger value="tree" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <FolderTreeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+              <span className="truncate">Code View</span>
             </TabsTrigger>
-            <TabsTrigger value="grid" className="gap-2">
-              <LayoutGrid className="h-4 w-4" />
-              Grid View
+            <TabsTrigger value="grid" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <LayoutGrid className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+              <span className="truncate">Grid View</span>
             </TabsTrigger>
           </TabsList>
 
@@ -406,9 +406,9 @@ export function ProjectDetailClient({
 
           {/* Traditional grid view */}
           <TabsContent value="grid" className="mt-4">
-            <div className="grid gap-6 lg:grid-cols-[250px_1fr]">
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-[250px_1fr]">
               {/* Sidebar with folder tree */}
-              <aside className="rounded-lg border bg-card p-4">
+              <aside className="rounded-lg border bg-card p-4 order-2 lg:order-1 min-w-0">
                 <FolderTree
                   projectId={project.id}
                   folders={folders}
@@ -419,7 +419,7 @@ export function ProjectDetailClient({
               </aside>
 
               {/* Main content area */}
-              <div className="space-y-4">
+              <div className="space-y-4 order-1 lg:order-2 min-w-0">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold">

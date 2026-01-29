@@ -20,7 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Settings, Plus, MoreHorizontal, Pencil, Trash2, Star, Check } from "lucide-react"
+import { Settings, Plus, MoreHorizontal, Pencil, Trash2, Star, Check, ListOrdered } from "lucide-react"
 import {
   type Category,
   createCategoryAction,
@@ -113,12 +113,12 @@ export function CategoryManager({ categories, onCategoriesChange }: CategoryMana
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Settings className="h-4 w-4 mr-2" />
-          Manage Categories
+        <Button variant="outline" size="sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
+          <ListOrdered className="size-4" />
+          <span className="sr-only">Categories</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Manage Categories</DialogTitle>
           <DialogDescription>

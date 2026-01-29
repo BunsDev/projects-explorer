@@ -271,4 +271,15 @@
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid var(--glass-border);
   }
+
+  /* Mobile bottom nav safe area (use with fixed bottom nav) */
+  .pb-safe-nav {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 768px) {
+    .pb-safe-nav {
+      padding-bottom: 0;
+    }
+  }
 }

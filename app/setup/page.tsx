@@ -41,50 +41,49 @@ export default function SetupPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-white sticky top-0 z-10">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <Archive className="h-6 w-6" />
-              <span className="text-lg font-semibold">Projects Explorer</span>
+      <header className="border-b bg-card sticky top-0 z-10">
+        <div className="container mx-auto px-4 sm:px-6 max-w-4xl">
+          <div className="flex h-14 sm:h-16 items-center justify-between gap-3">
+            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity min-w-0">
+              <Archive className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
+              <span className="text-base sm:text-lg font-semibold truncate">Projects Explorer</span>
             </Link>
-            <div className="flex items-center gap-3">
-              <a
-                href="https://github.com/BunsDev/projects-explorer"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-zinc-600 hover:text-zinc-900 transition-colors"
-              >
-                <Github className="h-5 w-5" />
-              </a>
-            </div>
+            <a
+              href="https://github.com/BunsDev/projects-explorer"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors shrink-0 p-1"
+              aria-label="View on GitHub"
+            >
+              <Github className="h-5 w-5" />
+            </a>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 max-w-4xl py-12">
+      <main className="container mx-auto px-4 sm:px-6 max-w-4xl py-8 sm:py-12">
         {/* Hero */}
-        <div className="text-center mb-12">
-          <Badge variant="secondary" className="mb-4">
+        <div className="text-center mb-8 sm:mb-12">
+          <Badge variant="secondary" className="mb-3 sm:mb-4">
             <Rocket className="h-3 w-3 mr-1" />
             Developer Setup Guide
           </Badge>
-          <h1 className="text-4xl font-bold tracking-tight text-zinc-900 mb-4">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-3 sm:mb-4">
             Deploy Your Own Instance
           </h1>
-          <p className="text-lg text-zinc-600 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
             Get your own Projects Explorer up and running in under 10 minutes.
             Follow these steps to deploy with Vercel and Neon.
           </p>
         </div>
 
         {/* Quick Deploy Button */}
-        <Card className="mb-8 border-2 border-blue-200 bg-blue-50/50">
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
+        <Card className="mb-6 sm:mb-8 border-2 border-primary/30 bg-primary/5">
+          <CardContent className="pt-4 sm:pt-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 text-center sm:text-left">
+              <div className="sm:flex-1">
                 <h3 className="font-semibold text-lg">One-Click Deploy</h3>
-                <p className="text-sm text-zinc-600">
+                <p className="text-sm text-muted-foreground">
                   The fastest way to get started — deploys to Vercel instantly
                 </p>
               </div>
@@ -122,7 +121,7 @@ export default function SetupPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <ol className="list-decimal list-inside space-y-2 text-sm text-zinc-700">
+              <ol className="list-decimal list-inside space-y-2 text-sm text-foreground/90">
                 <li>
                   Go to{" "}
                   <a
@@ -142,11 +141,11 @@ export default function SetupPage() {
 
               <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-zinc-400 text-xs">Example connection string</span>
+                  <span className="text-muted-foreground text-xs">Example connection string</span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-zinc-400 hover:text-white"
+                    className="h-6 text-muted-foreground hover:text-foreground"
                     onClick={() =>
                       copyToClipboard(
                         "postgresql://user:password@ep-xxx.region.aws.neon.tech/dbname?sslmode=require",
@@ -192,13 +191,13 @@ export default function SetupPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-zinc-700">
+              <p className="text-sm text-foreground/90">
                 In the Neon console, go to <strong>SQL Editor</strong> and run the setup script:
               </p>
 
               <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-zinc-400 text-xs">scripts/setup.sql</span>
+                  <span className="text-muted-foreground text-xs">scripts/setup.sql</span>
                   <a
                     href="https://github.com/BunsDev/projects-explorer/blob/main/scripts/setup.sql"
                     target="_blank"
@@ -208,10 +207,10 @@ export default function SetupPage() {
                     View on GitHub <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
-                <pre className="text-zinc-300 whitespace-pre-wrap">{setupSql}</pre>
+                <pre className="text-muted-foreground whitespace-pre-wrap">{setupSql}</pre>
               </div>
 
-              <div className="text-sm text-zinc-600">
+              <div className="text-sm text-muted-foreground">
                 <strong>Alternative:</strong> Run via command line:
               </div>
               <div className="bg-card rounded-lg p-4 font-mono text-sm">
@@ -237,7 +236,7 @@ export default function SetupPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <ol className="list-decimal list-inside space-y-2 text-sm text-zinc-700">
+              <ol className="list-decimal list-inside space-y-2 text-sm text-foreground/90">
                 <li>
                   Go to your{" "}
                   <a
@@ -274,13 +273,13 @@ export default function SetupPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-zinc-700">
+              <p className="text-sm text-foreground/90">
                 Create a strong password for your admin dashboard. This is what you&apos;ll use to login at <code className="bg-muted px-1 rounded">/login</code>.
               </p>
 
               <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-zinc-400 text-xs">Generate a secure password (macOS/Linux)</span>
+                  <span className="text-muted-foreground text-xs">Generate a secure password (macOS/Linux)</span>
                 </div>
                 <code className="text-green-400">openssl rand -base64 32</code>
               </div>
@@ -321,19 +320,19 @@ export default function SetupPage() {
                       <td className="py-3">
                         <code className="bg-muted px-2 py-1 rounded text-xs">DATABASE_URL</code>
                       </td>
-                      <td className="py-3 text-zinc-600">Neon PostgreSQL connection string</td>
+                      <td className="py-3 text-muted-foreground">Neon PostgreSQL connection string</td>
                     </tr>
                     <tr>
                       <td className="py-3">
                         <code className="bg-muted px-2 py-1 rounded text-xs">ADMIN_PASSWORD</code>
                       </td>
-                      <td className="py-3 text-zinc-600">Your chosen admin password</td>
+                      <td className="py-3 text-muted-foreground">Your chosen admin password</td>
                     </tr>
                     <tr>
                       <td className="py-3">
                         <code className="bg-muted px-2 py-1 rounded text-xs">BLOB_READ_WRITE_TOKEN</code>
                       </td>
-                      <td className="py-3 text-zinc-600">Vercel Blob storage token</td>
+                      <td className="py-3 text-muted-foreground">Vercel Blob storage token</td>
                     </tr>
                   </tbody>
                 </table>
@@ -341,11 +340,11 @@ export default function SetupPage() {
 
               <div className="bg-card rounded-lg p-4 font-mono text-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-zinc-400 text-xs">.env.local example</span>
+                  <span className="text-muted-foreground text-xs">.env.local example</span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-zinc-400 hover:text-white"
+                    className="h-6 text-muted-foreground hover:text-foreground"
                     onClick={() =>
                       copyToClipboard(
                         `DATABASE_URL="postgresql://..."
@@ -358,7 +357,7 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`,
                     {copiedStates["env"] ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   </Button>
                 </div>
-                <pre className="text-zinc-300">
+                <pre className="text-muted-foreground">
 {`DATABASE_URL="postgresql://..."
 ADMIN_PASSWORD="your-secure-password"
 BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
@@ -382,12 +381,12 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
-                <div className="bg-white rounded-lg p-4 border border-green-200">
+                <div className="bg-card rounded-lg p-4 border border-green-200">
                   <h4 className="font-medium mb-2 flex items-center gap-2">
                     <Rocket className="h-4 w-4" />
                     Vercel Deploy
                   </h4>
-                  <p className="text-sm text-zinc-600 mb-3">
+                  <p className="text-sm text-muted-foreground mb-3">
                     Push to main branch or use one-click deploy
                   </p>
                   <a
@@ -400,12 +399,12 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
                     </Button>
                   </a>
                 </div>
-                <div className="bg-white rounded-lg p-4 border border-green-200">
+                <div className="bg-card rounded-lg p-4 border border-green-200">
                   <h4 className="font-medium mb-2 flex items-center gap-2">
                     <Server className="h-4 w-4" />
                     Local Development
                   </h4>
-                  <p className="text-sm text-zinc-600 mb-3">
+                  <p className="text-sm text-muted-foreground mb-3">
                     Run locally with Bun or npm
                   </p>
                   <div className="bg-card rounded p-2 font-mono text-xs text-green-400">
@@ -423,9 +422,9 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
                     "File upload works in dashboard",
                     "Public sharing links work for downloads",
                   ].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2 text-zinc-700">
+                    <li key={i} className="flex items-center gap-2 text-foreground/90">
                       <div className="h-5 w-5 rounded border flex items-center justify-center">
-                        <ChevronRight className="h-3 w-3 text-zinc-400" />
+                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
                       </div>
                       {item}
                     </li>
@@ -438,7 +437,7 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
 
         {/* Footer CTA */}
         <div className="mt-12 text-center">
-          <p className="text-zinc-600 mb-4">Need help? Check out the documentation or open an issue.</p>
+          <p className="text-muted-foreground mb-4">Need help? Check out the documentation or open an issue.</p>
           <div className="flex items-center justify-center gap-4">
             <a
               href="https://github.com/BunsDev/projects-explorer"
@@ -461,14 +460,14 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-white py-6 mt-12">
-        <div className="container mx-auto px-4 max-w-4xl text-center text-sm text-zinc-500">
+      <footer className="border-t bg-card py-6 mt-8 sm:mt-12">
+        <div className="container mx-auto px-4 sm:px-6 max-w-4xl text-center text-xs sm:text-sm text-muted-foreground">
           Made with ❤️ by{" "}
           <a
             href="https://github.com/BunsDev"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-zinc-700 hover:underline"
+            className="text-foreground/90 hover:underline"
           >
             BunsDev
           </a>
