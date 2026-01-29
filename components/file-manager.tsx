@@ -258,6 +258,7 @@ function DraggableItem({
   isLast,
   parentIsLast,
   selectedIds,
+  isMenuOpen,
   onToggle,
   onSelect,
   onMultiSelect,
@@ -267,7 +268,8 @@ function DraggableItem({
   onDrop,
   onContextMenu,
   onDoubleClick,
-  onMenuClick,
+  onMenuOpenChange,
+  menuContent,
 }: {
   node: TreeNode
   depth: number
@@ -277,6 +279,7 @@ function DraggableItem({
   isLast: boolean
   parentIsLast: boolean[]
   selectedIds: Set<string>
+  isMenuOpen: boolean
   onToggle: () => void
   onSelect: (e: React.MouseEvent) => void
   onMultiSelect: (checked: boolean) => void
@@ -286,7 +289,8 @@ function DraggableItem({
   onDrop: (e: React.DragEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDoubleClick: () => void
-  onMenuClick: (e: React.MouseEvent) => void
+  onMenuOpenChange: (open: boolean) => void
+  menuContent: React.ReactNode
 }) {
   const isFolder = node.type === "folder"
   const hasChildren = isFolder && node.children && node.children.length > 0
@@ -367,14 +371,21 @@ function DraggableItem({
         </span>
       )}
 
-      {/* More options button - visible on hover */}
-      <button
-        onClick={onMenuClick}
-        className="p-0.5 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity mr-1 flex-shrink-0"
-        title="More options"
-      >
-        <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
+      {/* More options dropdown - button only triggers the menu */}
+      <DropdownMenu open={isMenuOpen} onOpenChange={onMenuOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <button
+            onClick={(e) => e.stopPropagation()}
+            className="p-0.5 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity mr-1 flex-shrink-0"
+            title="More options"
+          >
+            <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {menuContent}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Drag handle indicator */}
       <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 mr-2 flex-shrink-0" />
@@ -917,51 +928,41 @@ export function FileManager({
 
     return (
       <div key={node.id}>
-        <DropdownMenu open={isMenuOpen} onOpenChange={(open) => setOpenMenuId(open ? node.id : null)}>
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <div>
-                  <DraggableItem
-                    node={node}
-                    depth={depth}
-                    isExpanded={isExpanded}
-                    isSelected={isSelected}
-                    isDragOver={isDragOver}
-                    isLast={isLast}
-                    parentIsLast={parentIsLast}
-                    selectedIds={selectedIds}
-                    onToggle={() => toggleFolder(node.id)}
-                    onSelect={(e) => handleSelect(node.id, e)}
-                    onMultiSelect={(checked) => handleMultiSelect(node.id, checked)}
-                    onDragStart={(e) => handleDragStart(e, node)}
-                    onDragOver={(e) => handleDragOver(e, node.id, node.type === "folder")}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) => node.type === "folder" ? handleDrop(e, node.id) : undefined}
-                    onContextMenu={(e) => e.preventDefault()}
-                    onDoubleClick={() => {
-                      if (node.type === "folder") {
-                        toggleFolder(node.id)
-                      } else if (node.file) {
-                        setPreviewFile(node.file)
-                      }
-                    }}
-                    onMenuClick={(e) => {
-                      e.stopPropagation()
-                      setOpenMenuId(isMenuOpen ? null : node.id)
-                    }}
-                  />
-                </div>
-              </DropdownMenuTrigger>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              {renderMenuItems(node, false)}
-            </ContextMenuContent>
-          </ContextMenu>
-          <DropdownMenuContent align="end">
-            {renderMenuItems(node, true)}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ContextMenu>
+          <ContextMenuTrigger>
+            <DraggableItem
+              node={node}
+              depth={depth}
+              isExpanded={isExpanded}
+              isSelected={isSelected}
+              isDragOver={isDragOver}
+              isLast={isLast}
+              parentIsLast={parentIsLast}
+              selectedIds={selectedIds}
+              isMenuOpen={isMenuOpen}
+              onToggle={() => toggleFolder(node.id)}
+              onSelect={(e) => handleSelect(node.id, e)}
+              onMultiSelect={(checked) => handleMultiSelect(node.id, checked)}
+              onDragStart={(e) => handleDragStart(e, node)}
+              onDragOver={(e) => handleDragOver(e, node.id, node.type === "folder")}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => node.type === "folder" ? handleDrop(e, node.id) : undefined}
+              onContextMenu={(e) => e.preventDefault()}
+              onDoubleClick={() => {
+                if (node.type === "folder") {
+                  toggleFolder(node.id)
+                } else if (node.file) {
+                  setPreviewFile(node.file)
+                }
+              }}
+              onMenuOpenChange={(open) => setOpenMenuId(open ? node.id : null)}
+              menuContent={renderMenuItems(node, true)}
+            />
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            {renderMenuItems(node, false)}
+          </ContextMenuContent>
+        </ContextMenu>
         {node.type === "folder" && isExpanded && node.children?.map((child, idx) =>
           renderNode(
             child,

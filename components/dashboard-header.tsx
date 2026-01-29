@@ -41,7 +41,7 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
           {/* Global Settings Modal */}
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="hover:bg-accent/50">
+              <Button variant="ghost" size="sm" className="hover:bg-accent/50" suppressHydrationWarning>
                 <Settings className="size-4" />
                 <span className="sr-only">Global Settings</span>
               </Button>

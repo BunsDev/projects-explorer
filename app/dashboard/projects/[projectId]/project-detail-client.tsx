@@ -225,12 +225,12 @@ export function ProjectDetailClient({
             <Dialog open={isEditingUrl} onOpenChange={setIsEditingUrl}>
               <DialogTrigger asChild>
                 {deployedUrl ? (
-                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
+                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground" suppressHydrationWarning>
                     <Globe className="size-4" />
                     <span className="hidden sm:inline">Preview URL</span>
                     </Button>
                 ) : (
-                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
+                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground" suppressHydrationWarning>
                     <Globe className="size-4" />
                     <span className="hidden sm:inline">Add Preview URL</span>
                     </Button>

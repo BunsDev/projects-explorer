@@ -113,7 +113,7 @@ export function CategoryManager({ categories, onCategoriesChange }: CategoryMana
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
+        <Button variant="outline" size="sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground" suppressHydrationWarning>
           <ListOrdered className="size-4" />
           <span className="sr-only">Categories</span>
         </Button>
