@@ -342,6 +342,136 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Share Settings Collapsible */}
+                <Collapsible open={showShareSettings} onOpenChange={setShowShareSettings}>
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full justify-between px-0 hover:bg-transparent"
+                    >
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <Shield className="h-4 w-4" />
+                        Share Settings (Optional)
+                      </span>
+                      {showShareSettings ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-4 pt-2">
+                    <p className="text-xs text-muted-foreground">
+                      Configure default share settings for this project. Leave empty to inherit from global settings.
+                    </p>
+
+                    {/* Enable Sharing */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">Enable Sharing</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {shareEnabled === null
+                            ? "Inherits from global"
+                            : shareEnabled
+                            ? "Enabled"
+                            : "Disabled"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant={shareEnabled === null ? "secondary" : "ghost"}
+                          size="sm"
+                          onClick={() => setShareEnabled(null)}
+                        >
+                          Inherit
+                        </Button>
+                        <Switch
+                          checked={shareEnabled ?? true}
+                          onCheckedChange={setShareEnabled}
+                          disabled={shareEnabled === null}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Require Password */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium flex items-center gap-2">
+                          <Lock className="h-3 w-3" />
+                          Require Password
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          {sharePasswordRequired === null
+                            ? "Inherits from global"
+                            : sharePasswordRequired
+                            ? "Required"
+                            : "Optional"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant={sharePasswordRequired === null ? "secondary" : "ghost"}
+                          size="sm"
+                          onClick={() => setSharePasswordRequired(null)}
+                        >
+                          Inherit
+                        </Button>
+                        <Switch
+                          checked={sharePasswordRequired ?? false}
+                          onCheckedChange={setSharePasswordRequired}
+                          disabled={sharePasswordRequired === null}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Expiry Days */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <Clock className="h-3 w-3" />
+                        Default Expiry (days)
+                      </Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Inherit from global"
+                        value={shareExpiryDays}
+                        onChange={(e) => setShareExpiryDays(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Download Limit */}
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium flex items-center gap-2">
+                          <Download className="h-3 w-3" />
+                          Download Limit per IP
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="Inherit from global"
+                          value={shareDownloadLimitPerIp}
+                          onChange={(e) => setShareDownloadLimitPerIp(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Time Window (minutes)</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="Inherit from global"
+                          value={shareDownloadLimitWindowMinutes}
+                          onChange={(e) => setShareDownloadLimitWindowMinutes(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
               <DialogFooter>

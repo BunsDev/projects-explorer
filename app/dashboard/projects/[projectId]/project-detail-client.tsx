@@ -227,13 +227,13 @@ export function ProjectDetailClient({
                 {deployedUrl ? (
                   <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
                     <Globe className="size-4" />
-                    <span className="sr-only">Preview</span>
-                  </Button>
+                    <span className="hidden sm:inline">Preview URL</span>
+                    </Button>
                 ) : (
                   <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
                     <Globe className="size-4" />
-                    <span className="sr-only">Add Preview URL</span>
-                  </Button>
+                    <span className="hidden sm:inline">Add Preview URL</span>
+                    </Button>
                 )}
               </DialogTrigger>
               <DialogContent>
