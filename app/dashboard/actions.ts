@@ -1788,6 +1788,111 @@ export async function regenerateShareLinkAction(
 }
 
 /**
+ * Regenerate share link with hardened security.
+ * Downloads the file and re-uploads to create a completely new blob URL.
+ * This invalidates BOTH the share URL and the underlying blob URL.
+ * Use this when you need to completely revoke access to a file.
+ */
+export async function regenerateShareLinkHardenedAction(
+  fileId: string
+): Promise<{ success: boolean; publicId?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get current file info
+    const fileResult = await db
+      .select({
+        id: files.id,
+        blobUrl: files.blobUrl,
+        originalFilename: files.originalFilename,
+        mimeType: files.mimeType,
+        fileSize: files.fileSize,
+        projectId: files.projectId,
+        title: files.title,
+      })
+      .from(files)
+      .where(eq(files.id, fileId))
+      .limit(1)
+
+    if (fileResult.length === 0) {
+      return { success: false, error: "File not found" }
+    }
+
+    const file = fileResult[0]
+    const oldBlobUrl = file.blobUrl
+
+    // Check file size - serverless functions have timeout limits
+    // For very large files, this operation may timeout
+    if (file.fileSize > 50 * 1024 * 1024) {
+      return { 
+        success: false, 
+        error: "File is too large for hardened regeneration (max 50MB). Use standard reset instead." 
+      }
+    }
+
+    // Download the file from old blob URL
+    const response = await fetch(oldBlobUrl)
+    if (!response.ok) {
+      return { success: false, error: "Failed to download file for re-upload" }
+    }
+
+    const fileBlob = await response.blob()
+
+    // Upload to new blob location (gets new random URL)
+    const newBlob = await put(file.originalFilename, fileBlob, {
+      access: "public",
+      contentType: file.mimeType || "application/octet-stream",
+      addRandomSuffix: true,
+    })
+
+    // Generate new public ID
+    const newPublicId = nanoid(21)
+
+    // Update database with new blob URL and public ID
+    await db
+      .update(files)
+      .set({
+        blobUrl: newBlob.url,
+        publicId: newPublicId,
+        updatedAt: new Date(),
+      })
+      .where(eq(files.id, fileId))
+
+    // Delete old blob (non-blocking, don't fail if this errors)
+    try {
+      await del(oldBlobUrl)
+    } catch (deleteError) {
+      console.error("Failed to delete old blob (non-critical):", deleteError)
+    }
+
+    if (file.projectId) {
+      revalidatePath(`/dashboard/projects/${file.projectId}`)
+    }
+
+    // SECURITY: Audit log for hardened link regeneration
+    await logAuditAction(
+      "regenerate_link_hardened",
+      "file",
+      fileId,
+      file.title || file.originalFilename,
+      JSON.stringify({ 
+        newPublicId, 
+        oldBlobUrl: oldBlobUrl.substring(0, 50) + "...",
+        newBlobUrl: newBlob.url.substring(0, 50) + "...",
+      })
+    )
+
+    return { success: true, publicId: newPublicId }
+  } catch (error) {
+    console.error("Regenerate share link (hardened) error:", error)
+    return { success: false, error: "Failed to regenerate share link. The file may be too large or the operation timed out." }
+  }
+}
+
+/**
  * Regenerate share links for all files in a project.
  * This invalidates all existing share URLs for the project.
  */

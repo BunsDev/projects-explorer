@@ -65,6 +65,7 @@ import {
   Settings2,
   RefreshCw,
   Link2,
+  ShieldCheck,
 } from "lucide-react"
 import { FileShareSettingsModal } from "@/components/share-settings"
 import {
@@ -77,6 +78,7 @@ import {
   moveFolderAction,
   getFileContentAction,
   regenerateShareLinkAction,
+  regenerateShareLinkHardenedAction,
 } from "@/app/dashboard/actions"
 import { useToast } from "@/hooks/use-toast"
 
@@ -487,6 +489,7 @@ export function FileManager({
   // File share settings modal state
   const [shareSettingsFileId, setShareSettingsFileId] = useState<string | null>(null)
   const [shareSettingsFileName, setShareSettingsFileName] = useState<string>("")
+  const [shareSettingsFileSize, setShareSettingsFileSize] = useState<number>(0)
 
   // Toast for notifications
   const { toast } = useToast()
@@ -503,6 +506,48 @@ export function FileManager({
       toast({
         title: "Link Regenerated",
         description: "New share link copied to clipboard.",
+      })
+      onDataChange?.()
+    } else {
+      toast({
+        title: "Error",
+        description: result.error || "Failed to regenerate link",
+        variant: "destructive",
+      })
+    }
+  }, [toast, onDataChange])
+
+  // Handler to regenerate a file's share link with hardened security (re-uploads file)
+  const handleRegenerateLinkHardened = useCallback(async (fileId: string, fileName: string, fileSize: number) => {
+    if (fileSize > 50 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Hardened regeneration is limited to files under 50MB. Use standard reset instead.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const confirmed = confirm(
+      `Secure regenerate for "${fileName}"?\n\n` +
+      `This will download and re-upload the file to create completely new URLs. ` +
+      `Both the share link AND the underlying file URL will be invalidated.\n\n` +
+      `This may take a moment for larger files.`
+    )
+    if (!confirmed) return
+
+    toast({
+      title: "Regenerating...",
+      description: "Downloading and re-uploading file. Please wait.",
+    })
+
+    const result = await regenerateShareLinkHardenedAction(fileId)
+    if (result.success && result.publicId) {
+      const newUrl = `${window.location.origin}/share/${result.publicId}`
+      await navigator.clipboard.writeText(newUrl)
+      toast({
+        title: "Secure Regeneration Complete",
+        description: "All old URLs are now invalid. New link copied to clipboard.",
       })
       onDataChange?.()
     } else {
@@ -844,6 +889,7 @@ export function FileManager({
                   onClick={() => {
                     setShareSettingsFileId(node.file!.id)
                     setShareSettingsFileName(node.file!.originalFilename)
+                    setShareSettingsFileSize(node.file!.fileSize)
                   }}
                 >
                   <Settings2 className="mr-2 h-4 w-4" />
@@ -853,7 +899,13 @@ export function FileManager({
                   onClick={() => handleRegenerateLink(node.file!.id, node.file!.originalFilename)}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  Regenerate Link
+                  Reset Share Link
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => handleRegenerateLinkHardened(node.file!.id, node.file!.originalFilename, node.file!.fileSize)}
+                >
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Regenerate Link (Secure)
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem
@@ -1096,11 +1148,13 @@ export function FileManager({
           fileId={shareSettingsFileId}
           fileName={shareSettingsFileName}
           projectId={projectId}
+          fileSize={shareSettingsFileSize}
           open={!!shareSettingsFileId}
           onOpenChange={(open) => {
             if (!open) {
               setShareSettingsFileId(null)
               setShareSettingsFileName("")
+              setShareSettingsFileSize(0)
             }
           }}
           onSave={onDataChange}

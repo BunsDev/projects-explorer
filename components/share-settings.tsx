@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
   Shield,
+  ShieldCheck,
   Lock,
   Clock,
   Download,
@@ -38,6 +39,7 @@ import {
   getFileShareSettingsAction,
   updateFileShareSettingsAction,
   regenerateShareLinkAction,
+  regenerateShareLinkHardenedAction,
   regenerateAllProjectLinksAction,
   type GlobalShareSettings,
   type ProjectShareSettings,
@@ -591,6 +593,7 @@ interface FileShareSettingsModalProps {
   fileId: string
   fileName: string
   projectId?: string | null
+  fileSize?: number
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave?: () => void
@@ -600,6 +603,7 @@ export function FileShareSettingsModal({
   fileId,
   fileName,
   projectId,
+  fileSize,
   open,
   onOpenChange,
   onSave,
@@ -611,6 +615,7 @@ export function FileShareSettingsModal({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  const [regeneratingHardened, setRegeneratingHardened] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -733,18 +738,46 @@ export function FileShareSettingsModal({
   }
 
   const handleRegenerateLink = async () => {
-    if (!confirm("This will invalidate the current share link. Are you sure?")) {
+    if (!confirm("Reset share link? This will invalidate the current share URL.")) {
       return
     }
 
     setRegenerating(true)
+    setError(null)
     const result = await regenerateShareLinkAction(fileId)
     if (result.success && result.publicId) {
       setPublicId(result.publicId)
+      onSave?.()
+    } else {
+      setError(result.error || "Failed to reset link")
+    }
+    setRegenerating(false)
+  }
+
+  const handleRegenerateLinkHardened = async () => {
+    if (fileSize && fileSize > 50 * 1024 * 1024) {
+      setError("File is too large for secure regeneration (max 50MB). Use standard reset instead.")
+      return
+    }
+
+    if (!confirm(
+      "Secure regeneration will download and re-upload the file to create completely new URLs.\n\n" +
+      "Both the share link AND the underlying file URL will be invalidated.\n\n" +
+      "This may take a moment for larger files. Continue?"
+    )) {
+      return
+    }
+
+    setRegeneratingHardened(true)
+    setError(null)
+    const result = await regenerateShareLinkHardenedAction(fileId)
+    if (result.success && result.publicId) {
+      setPublicId(result.publicId)
+      onSave?.()
     } else {
       setError(result.error || "Failed to regenerate link")
     }
-    setRegenerating(false)
+    setRegeneratingHardened(false)
   }
 
   const copyLink = async () => {
@@ -782,27 +815,44 @@ export function FileShareSettingsModal({
             )}
 
             {/* Share Link */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label className="text-sm font-medium flex items-center gap-2">
                 <Link2 className="h-3 w-3" />
                 Share Link
               </Label>
               <div className="flex gap-2">
                 <Input value={shareUrl} readOnly className="font-mono text-xs" />
-                <Button variant="outline" size="icon" onClick={copyLink}>
+                <Button variant="outline" size="icon" onClick={copyLink} title="Copy link">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              
+              {/* Regenerate Options */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRegenerateLink}
+                  disabled={regenerating || regeneratingHardened}
+                  className="flex-1"
+                >
+                  <RefreshCw className={`mr-2 h-3 w-3 ${regenerating ? "animate-spin" : ""}`} />
+                  {regenerating ? "Resetting..." : "Reset Link"}
                 </Button>
                 <Button
                   variant="outline"
-                  size="icon"
-                  onClick={handleRegenerateLink}
-                  disabled={regenerating}
+                  size="sm"
+                  onClick={handleRegenerateLinkHardened}
+                  disabled={regenerating || regeneratingHardened || (fileSize ? fileSize > 50 * 1024 * 1024 : false)}
+                  className="flex-1"
+                  title={fileSize && fileSize > 50 * 1024 * 1024 ? "File too large (max 50MB)" : "Invalidates all URLs including underlying file URL"}
                 >
-                  <RefreshCw className={`h-4 w-4 ${regenerating ? "animate-spin" : ""}`} />
+                  <ShieldCheck className={`mr-2 h-3 w-3 ${regeneratingHardened ? "animate-spin" : ""}`} />
+                  {regeneratingHardened ? "Processing..." : "Secure Reset"}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Regenerating creates a new URL and invalidates the old one.
+                <strong>Reset Link:</strong> Creates new share URL (fast). <strong>Secure Reset:</strong> Re-uploads file to invalidate all URLs (slower, max 50MB).
               </p>
             </div>
 
