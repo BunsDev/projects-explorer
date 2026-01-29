@@ -150,17 +150,22 @@ export function CategoryManager({ categories, onCategoriesChange }: CategoryMana
                         placeholder="Category name"
                         className="h-8"
                       />
-                      <div className="flex gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {CATEGORY_COLORS.map((c) => (
                           <button
                             key={c.name}
                             type="button"
                             onClick={() => setColor(c.name)}
+                            title={c.name}
                             className={cn(
-                              "w-6 h-6 rounded-full border-2",
+                              "w-7 h-7 rounded-full border-2 transition-all shrink-0",
                               c.bg,
-                              color === c.name ? "border-foreground" : "border-transparent"
+                              color === c.name
+                                ? "border-foreground ring-2 ring-foreground ring-offset-2 ring-offset-background"
+                                : "border-gray-300 dark:border-gray-600"
                             )}
+                            aria-pressed={color === c.name}
+                            aria-label={`Color ${c.name}`}
                           />
                         ))}
                       </div>
@@ -254,17 +259,22 @@ export function CategoryManager({ categories, onCategoriesChange }: CategoryMana
                   />
                   <div className="space-y-2">
                     <Label>Color</Label>
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {CATEGORY_COLORS.map((c) => (
                         <button
                           key={c.name}
                           type="button"
                           onClick={() => setColor(c.name)}
+                          title={c.name}
                           className={cn(
-                            "w-6 h-6 rounded-full border-2 transition-all",
+                            "w-7 h-7 rounded-full border-2 transition-all shrink-0",
                             c.bg,
-                            color === c.name ? "border-foreground scale-110" : "border-transparent"
+                            color === c.name
+                              ? "border-foreground ring-2 ring-foreground ring-offset-2 ring-offset-background scale-105"
+                              : "border-gray-300 dark:border-gray-600"
                           )}
+                          aria-pressed={color === c.name}
+                          aria-label={`Color ${c.name}`}
                         />
                       ))}
                     </div>

@@ -41,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe } from "lucide-react"
+import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe, ExternalLink, HardDrive } from "lucide-react"
 import {
   createProjectAction,
   updateProjectAction,
@@ -65,7 +65,7 @@ function formatBytes(bytes: number): string {
 
 function getCategoryColorClasses(colorName: string | null) {
   const color = CATEGORY_COLORS.find((c) => c.name === colorName)
-  return color || { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", name: "gray" }
+  return color || { bg: "bg-gray-100", text: "text-gray-900", border: "border-gray-200", name: "gray" }
 }
 
 interface ProjectListProps {
@@ -168,13 +168,13 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
         projects.map((p) =>
           p.id === selectedProject.id
             ? {
-                ...p,
-                name,
-                description: description || null,
-                categoryId: categoryId,
-                categoryName: newCategory?.name || null,
-                categoryColor: newCategory?.color || null,
-              }
+              ...p,
+              name,
+              description: description || null,
+              categoryId: categoryId,
+              categoryName: newCategory?.name || null,
+              categoryColor: newCategory?.color || null,
+            }
             : p
         )
       )
@@ -190,15 +190,15 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
 
   const handleDelete = async () => {
     if (!selectedProject) return
-    
+
     setIsLoading(true)
-    
+
     const result = await deleteProjectAction(selectedProject.id)
-    
+
     if (result.success) {
       setProjects(projects.filter((p) => p.id !== selectedProject.id))
     }
-    
+
     setIsDeleteOpen(false)
     setSelectedProject(null)
     setIsLoading(false)
@@ -467,21 +467,27 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
               <CardContent>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   {project.categoryName && (
-                    <Badge variant="glass">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "border",
+                        getCategoryColorClasses(project.categoryColor).bg,
+                        getCategoryColorClasses(project.categoryColor).text,
+                        getCategoryColorClasses(project.categoryColor).border
+                      )}
+                    >
                       {project.categoryName}
                     </Badge>
                   )}
-                  {project.deployedUrl && (
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <Globe className="h-3 w-3" />
-                      URL
-                    </span>
-                  )}
-                  <div className="flex items-center gap-1">
+
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <FileArchive className="h-4 w-4" />
-                    <span>{project.fileCount} files</span>
+                    <span className="font-medium">{project.fileCount} {project.fileCount === 1 ? "file" : "files"}</span>
                   </div>
-                  <div>{formatBytes(project.totalSize)}</div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <HardDrive className="h-4 w-4" />
+                    <span>{formatBytes(project.totalSize)}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
