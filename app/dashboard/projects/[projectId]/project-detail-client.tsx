@@ -352,7 +352,7 @@ export function ProjectDetailClient({
             ? `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=0`
             : deployedUrl
           return (
-            <Card className="mb-4">
+            <Card className="mb-4 pb-0">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 -my-4">
                 <CardTitle className="text-base font-medium flex items-center gap-2">
                   {isYouTube ? (

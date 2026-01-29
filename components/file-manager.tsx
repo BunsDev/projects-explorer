@@ -513,17 +513,32 @@ export function FileManager({
   const [shareSettingsFileName, setShareSettingsFileName] = useState<string>("")
   const [shareSettingsFileSize, setShareSettingsFileSize] = useState<number>(0)
 
-  // Move file dialog state
+  // Move file dialog state (single file)
   const [moveFileOpen, setMoveFileOpen] = useState(false)
   const [moveFileId, setMoveFileId] = useState<string | null>(null)
   const [moveFileName, setMoveFileName] = useState<string>("")
   const [selectedTargetFolder, setSelectedTargetFolder] = useState<string | null>(null)
+
+  // Bulk move files dialog state
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false)
+  const [bulkMoveTargetFolder, setBulkMoveTargetFolder] = useState<string | null>(null)
+
+  // Create folder from selection dialog state
+  const [createFolderFromSelectionOpen, setCreateFolderFromSelectionOpen] = useState(false)
+  const [newFolderNameForSelection, setNewFolderNameForSelection] = useState("")
 
   // Dropdown menu state for tree items
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   // Toast for notifications
   const { toast } = useToast()
+
+  // Selection helpers (defined early for use in handlers)
+  const getSelectedItems = useCallback(() => {
+    const selectedFolders = localFolders.filter((f) => selectedIds.has(f.id))
+    const selectedFiles = localFiles.filter((f) => selectedIds.has(f.id))
+    return { folders: selectedFolders, files: selectedFiles }
+  }, [localFolders, localFiles, selectedIds])
 
   // Handler to regenerate a file's share link
   const handleRegenerateLink = useCallback(async (fileId: string, fileName: string) => {
@@ -590,15 +605,137 @@ export function FileManager({
     }
   }, [toast, onDataChange])
 
+  // Handler to open move file dialog
+  const openMoveFileDialog = useCallback((fileId: string, fileName: string, currentFolderId: string | null) => {
+    setMoveFileId(fileId)
+    setMoveFileName(fileName)
+    setSelectedTargetFolder(currentFolderId)
+    setMoveFileOpen(true)
+  }, [])
+
+  // Handler to move file to selected folder
+  const handleMoveFile = useCallback(async () => {
+    if (!moveFileId) return
+
+    setIsLoading(true)
+    const result = await moveFileAction(moveFileId, selectedTargetFolder)
+    
+    if (result.success) {
+      setLocalFiles((prev) =>
+        prev.map((f) => (f.id === moveFileId ? { ...f, folderId: selectedTargetFolder } : f))
+      )
+      toast({
+        title: "File Moved",
+        description: `"${moveFileName}" has been moved successfully.`,
+      })
+      onDataChange?.()
+    } else {
+      toast({
+        title: "Error",
+        description: result.error || "Failed to move file",
+        variant: "destructive",
+      })
+    }
+    
+    setMoveFileOpen(false)
+    setMoveFileId(null)
+    setMoveFileName("")
+    setSelectedTargetFolder(null)
+    setIsLoading(false)
+  }, [moveFileId, moveFileName, selectedTargetFolder, toast, onDataChange])
+
+  // Handler to bulk move selected files to a folder
+  const handleBulkMoveFiles = useCallback(async () => {
+    const { files: filesToMove } = getSelectedItems()
+    if (filesToMove.length === 0) return
+
+    setIsLoading(true)
+    const fileIds = filesToMove.map(f => f.id)
+    const result = await moveFilesAction(fileIds, bulkMoveTargetFolder)
+    
+    if (result.success) {
+      setLocalFiles((prev) =>
+        prev.map((f) => (fileIds.includes(f.id) ? { ...f, folderId: bulkMoveTargetFolder } : f))
+      )
+      toast({
+        title: "Files Moved",
+        description: `${filesToMove.length} file${filesToMove.length !== 1 ? "s" : ""} moved successfully.`,
+      })
+      setSelectedIds(new Set())
+      onDataChange?.()
+    } else {
+      toast({
+        title: "Error",
+        description: result.error || "Failed to move files",
+        variant: "destructive",
+      })
+    }
+    
+    setBulkMoveOpen(false)
+    setBulkMoveTargetFolder(null)
+    setIsLoading(false)
+  }, [getSelectedItems, bulkMoveTargetFolder, toast, onDataChange])
+
+  // Handler to create a new folder and move selected files into it
+  const handleCreateFolderFromSelection = useCallback(async () => {
+    const { files: filesToMove } = getSelectedItems()
+    if (filesToMove.length === 0 || !newFolderNameForSelection.trim()) return
+
+    setIsLoading(true)
+    
+    // First create the folder
+    const createResult = await createFolderAction(projectId, newFolderNameForSelection.trim())
+    
+    if (!createResult.success || !createResult.folderId) {
+      toast({
+        title: "Error",
+        description: createResult.error || "Failed to create folder",
+        variant: "destructive",
+      })
+      setIsLoading(false)
+      return
+    }
+
+    const newFolderId = createResult.folderId
+    
+    // Add the new folder to local state
+    setLocalFolders((prev) => [
+      ...prev,
+      { id: newFolderId, name: newFolderNameForSelection.trim(), parentId: null },
+    ])
+    
+    // Expand the new folder so user sees the files
+    setExpandedFolders((prev) => new Set([...prev, newFolderId]))
+
+    // Now move the files into the new folder
+    const fileIds = filesToMove.map(f => f.id)
+    const moveResult = await moveFilesAction(fileIds, newFolderId)
+    
+    if (moveResult.success) {
+      setLocalFiles((prev) =>
+        prev.map((f) => (fileIds.includes(f.id) ? { ...f, folderId: newFolderId } : f))
+      )
+      toast({
+        title: "Folder Created",
+        description: `Created "${newFolderNameForSelection.trim()}" with ${filesToMove.length} file${filesToMove.length !== 1 ? "s" : ""}.`,
+      })
+      setSelectedIds(new Set())
+      onDataChange?.()
+    } else {
+      toast({
+        title: "Partial Success",
+        description: "Folder created but some files could not be moved.",
+        variant: "destructive",
+      })
+    }
+    
+    setCreateFolderFromSelectionOpen(false)
+    setNewFolderNameForSelection("")
+    setIsLoading(false)
+  }, [getSelectedItems, newFolderNameForSelection, projectId, toast, onDataChange])
+
   // Build tree
   const tree = buildTree(localFolders, localFiles)
-
-  // Selection helpers
-  const getSelectedItems = useCallback(() => {
-    const selectedFolders = localFolders.filter((f) => selectedIds.has(f.id))
-    const selectedFiles = localFiles.filter((f) => selectedIds.has(f.id))
-    return { folders: selectedFolders, files: selectedFiles }
-  }, [localFolders, localFiles, selectedIds])
 
   // Handlers
   const toggleFolder = useCallback((id: string) => {
@@ -888,6 +1025,13 @@ export function FileManager({
           </a>
         </MenuItem>
         <MenuItem
+          onClick={() => openMoveFileDialog(node.file!.id, node.file!.originalFilename, node.file!.folderId)}
+        >
+          <Move className="mr-2 h-4 w-4" />
+          Move to...
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
           onClick={() => {
             setShareSettingsFileId(node.file!.id)
             setShareSettingsFileName(node.file!.originalFilename)
@@ -1014,13 +1158,25 @@ export function FileManager({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {selectedFiles.length > 0 && (
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => setDeleteFilesOpen(true)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete {selectedFiles.length} file{selectedFiles.length !== 1 ? "s" : ""}
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => setBulkMoveOpen(true)}>
+                      <Move className="mr-2 h-4 w-4" />
+                      Move {selectedFiles.length} file{selectedFiles.length !== 1 ? "s" : ""} to...
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setCreateFolderFromSelectionOpen(true)}>
+                      <FolderPlus className="mr-2 h-4 w-4" />
+                      Create folder with {selectedFiles.length} file{selectedFiles.length !== 1 ? "s" : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => setDeleteFilesOpen(true)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete {selectedFiles.length} file{selectedFiles.length !== 1 ? "s" : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
                 )}
                 <DropdownMenuItem onClick={() => setSelectedIds(new Set())}>
                   <X className="mr-2 h-4 w-4" />
@@ -1188,6 +1344,206 @@ export function FileManager({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Move File Dialog */}
+      <Dialog open={moveFileOpen} onOpenChange={(open) => {
+        setMoveFileOpen(open)
+        if (!open) {
+          setMoveFileId(null)
+          setMoveFileName("")
+          setSelectedTargetFolder(null)
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move File</DialogTitle>
+            <DialogDescription>
+              Select a destination folder for &quot;{moveFileName}&quot;
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Destination Folder</Label>
+              <div className="border rounded-lg max-h-64 overflow-y-auto">
+                {/* Root option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedTargetFolder(null)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                    selectedTargetFolder === null && "bg-primary/10"
+                  )}
+                >
+                  <Folder className="h-4 w-4 text-amber-500" />
+                  <span className="font-medium">Root (No folder)</span>
+                  {selectedTargetFolder === null && (
+                    <Check className="ml-auto h-4 w-4 text-primary" />
+                  )}
+                </button>
+                {/* Folder list */}
+                {localFolders.map((folder) => {
+                  // Find the file being moved to check its current folder
+                  const movingFile = localFiles.find(f => f.id === moveFileId)
+                  const isCurrentFolder = movingFile?.folderId === folder.id
+                  
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => setSelectedTargetFolder(folder.id)}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                        selectedTargetFolder === folder.id && "bg-primary/10",
+                        isCurrentFolder && "text-muted-foreground"
+                      )}
+                    >
+                      <Folder className="h-4 w-4 text-amber-500" />
+                      <span>{folder.name}</span>
+                      {isCurrentFolder && (
+                        <span className="text-xs text-muted-foreground ml-1">(current)</span>
+                      )}
+                      {selectedTargetFolder === folder.id && (
+                        <Check className="ml-auto h-4 w-4 text-primary" />
+                      )}
+                    </button>
+                  )
+                })}
+                {localFolders.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No folders available. Create a folder first.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveFileOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMoveFile} disabled={isLoading}>
+              {isLoading ? "Moving..." : "Move File"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Move Files Dialog */}
+      <Dialog open={bulkMoveOpen} onOpenChange={(open) => {
+        setBulkMoveOpen(open)
+        if (!open) {
+          setBulkMoveTargetFolder(null)
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move {selectedFiles.length} File{selectedFiles.length !== 1 ? "s" : ""}</DialogTitle>
+            <DialogDescription>
+              Select a destination folder for the selected files
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Destination Folder</Label>
+              <div className="border rounded-lg max-h-64 overflow-y-auto">
+                {/* Root option */}
+                <button
+                  type="button"
+                  onClick={() => setBulkMoveTargetFolder(null)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                    bulkMoveTargetFolder === null && "bg-primary/10"
+                  )}
+                >
+                  <Folder className="h-4 w-4 text-amber-500" />
+                  <span className="font-medium">Root (No folder)</span>
+                  {bulkMoveTargetFolder === null && (
+                    <Check className="ml-auto h-4 w-4 text-primary" />
+                  )}
+                </button>
+                {/* Folder list */}
+                {localFolders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => setBulkMoveTargetFolder(folder.id)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                      bulkMoveTargetFolder === folder.id && "bg-primary/10"
+                    )}
+                  >
+                    <Folder className="h-4 w-4 text-amber-500" />
+                    <span>{folder.name}</span>
+                    {bulkMoveTargetFolder === folder.id && (
+                      <Check className="ml-auto h-4 w-4 text-primary" />
+                    )}
+                  </button>
+                ))}
+                {localFolders.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No folders available. Create a folder first.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkMoveOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkMoveFiles} disabled={isLoading}>
+              {isLoading ? "Moving..." : `Move ${selectedFiles.length} File${selectedFiles.length !== 1 ? "s" : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Folder from Selection Dialog */}
+      <Dialog open={createFolderFromSelectionOpen} onOpenChange={(open) => {
+        setCreateFolderFromSelectionOpen(open)
+        if (!open) {
+          setNewFolderNameForSelection("")
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Folder with Files</DialogTitle>
+            <DialogDescription>
+              Create a new folder and move {selectedFiles.length} selected file{selectedFiles.length !== 1 ? "s" : ""} into it
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-folder-name">Folder Name</Label>
+              <Input
+                id="new-folder-name"
+                placeholder="Enter folder name"
+                value={newFolderNameForSelection}
+                onChange={(e) => setNewFolderNameForSelection(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && newFolderNameForSelection.trim() && handleCreateFolderFromSelection()}
+              />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium mb-1">Files to be moved:</p>
+              <ul className="list-disc list-inside max-h-32 overflow-y-auto">
+                {selectedFiles.slice(0, 5).map((file) => (
+                  <li key={file.id} className="truncate">{file.originalFilename}</li>
+                ))}
+                {selectedFiles.length > 5 && (
+                  <li className="text-muted-foreground">...and {selectedFiles.length - 5} more</li>
+                )}
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateFolderFromSelectionOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolderFromSelection} disabled={isLoading || !newFolderNameForSelection.trim()}>
+              {isLoading ? "Creating..." : "Create & Move"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* File Share Settings Modal */}
       {shareSettingsFileId && (
