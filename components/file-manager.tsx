@@ -267,6 +267,7 @@ function DraggableItem({
   onDrop,
   onContextMenu,
   onDoubleClick,
+  onMenuClick,
 }: {
   node: TreeNode
   depth: number
@@ -285,6 +286,7 @@ function DraggableItem({
   onDrop: (e: React.DragEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDoubleClick: () => void
+  onMenuClick: (e: React.MouseEvent) => void
 }) {
   const isFolder = node.type === "folder"
   const hasChildren = isFolder && node.children && node.children.length > 0
@@ -364,6 +366,15 @@ function DraggableItem({
           {formatBytes(node.file.fileSize)}
         </span>
       )}
+
+      {/* More options button - visible on hover */}
+      <button
+        onClick={onMenuClick}
+        className="p-0.5 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity mr-1 flex-shrink-0"
+        title="More options"
+      >
+        <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
 
       {/* Drag handle indicator */}
       <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 mr-2 flex-shrink-0" />
@@ -490,6 +501,9 @@ export function FileManager({
   const [shareSettingsFileId, setShareSettingsFileId] = useState<string | null>(null)
   const [shareSettingsFileName, setShareSettingsFileName] = useState<string>("")
   const [shareSettingsFileSize, setShareSettingsFileSize] = useState<number>(0)
+
+  // Dropdown menu state for tree items
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   // Toast for notifications
   const { toast } = useToast()
@@ -816,112 +830,138 @@ export function FileManager({
     setDeleteFolderOpen(true)
   }
 
+  // Shared menu content for both context menu and dropdown
+  const renderMenuItems = (node: TreeNode, isDropdown: boolean) => {
+    const MenuItem = isDropdown ? DropdownMenuItem : ContextMenuItem
+    const MenuSeparator = isDropdown ? DropdownMenuSeparator : ContextMenuSeparator
+
+    if (node.type === "folder") {
+      return (
+        <>
+          <MenuItem onClick={() => openCreateFolder(node.id)}>
+            <FolderPlus className="mr-2 h-4 w-4" />
+            New Subfolder
+          </MenuItem>
+          <MenuItem onClick={() => openRenameFolder(node.folder!)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Rename
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem
+            className="text-destructive"
+            onClick={() => openDeleteFolder(node.folder!)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </MenuItem>
+        </>
+      )
+    }
+
+    return (
+      <>
+        <MenuItem onClick={() => setPreviewFile(node.file!)}>
+          <FileText className="mr-2 h-4 w-4" />
+          Preview
+        </MenuItem>
+        <MenuItem asChild>
+          <a href={node.file?.blobUrl} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Open in New Tab
+          </a>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setShareSettingsFileId(node.file!.id)
+            setShareSettingsFileName(node.file!.originalFilename)
+            setShareSettingsFileSize(node.file!.fileSize)
+          }}
+        >
+          <Settings2 className="mr-2 h-4 w-4" />
+          Share Settings
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleRegenerateLink(node.file!.id, node.file!.originalFilename)}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Reset Share Link
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleRegenerateLinkHardened(node.file!.id, node.file!.originalFilename, node.file!.fileSize)}
+        >
+          <ShieldCheck className="mr-2 h-4 w-4" />
+          Regenerate Link (Secure)
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
+          className="text-destructive"
+          onClick={() => {
+            setSelectedIds(new Set([node.id]))
+            setDeleteFilesOpen(true)
+          }}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </MenuItem>
+      </>
+    )
+  }
+
   // Render tree item recursively with proper tree line tracking
   const renderNode = (node: TreeNode, depth: number = 0, isLast: boolean = false, parentIsLast: boolean[] = []) => {
     const isExpanded = expandedFolders.has(node.id)
     const isSelected = selectedIds.has(node.id)
     const isDragOver = dragOverId === node.id
     const childCount = node.children?.length || 0
+    const isMenuOpen = openMenuId === node.id
 
     return (
       <div key={node.id}>
-        <ContextMenu>
-          <ContextMenuTrigger>
-            <DraggableItem
-              node={node}
-              depth={depth}
-              isExpanded={isExpanded}
-              isSelected={isSelected}
-              isDragOver={isDragOver}
-              isLast={isLast}
-              parentIsLast={parentIsLast}
-              selectedIds={selectedIds}
-              onToggle={() => toggleFolder(node.id)}
-              onSelect={(e) => handleSelect(node.id, e)}
-              onMultiSelect={(checked) => handleMultiSelect(node.id, checked)}
-              onDragStart={(e) => handleDragStart(e, node)}
-              onDragOver={(e) => handleDragOver(e, node.id, node.type === "folder")}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => node.type === "folder" ? handleDrop(e, node.id) : undefined}
-              onContextMenu={(e) => e.preventDefault()}
-              onDoubleClick={() => {
-                if (node.type === "folder") {
-                  toggleFolder(node.id)
-                } else if (node.file) {
-                  setPreviewFile(node.file)
-                }
-              }}
-            />
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            {node.type === "folder" ? (
-              <>
-                <ContextMenuItem onClick={() => openCreateFolder(node.id)}>
-                  <FolderPlus className="mr-2 h-4 w-4" />
-                  New Subfolder
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => openRenameFolder(node.folder!)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Rename
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  className="text-destructive"
-                  onClick={() => openDeleteFolder(node.folder!)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </ContextMenuItem>
-              </>
-            ) : (
-              <>
-                <ContextMenuItem onClick={() => setPreviewFile(node.file!)}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Preview
-                </ContextMenuItem>
-                <ContextMenuItem asChild>
-                  <a href={node.file?.blobUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Open in New Tab
-                  </a>
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => {
-                    setShareSettingsFileId(node.file!.id)
-                    setShareSettingsFileName(node.file!.originalFilename)
-                    setShareSettingsFileSize(node.file!.fileSize)
-                  }}
-                >
-                  <Settings2 className="mr-2 h-4 w-4" />
-                  Share Settings
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => handleRegenerateLink(node.file!.id, node.file!.originalFilename)}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Reset Share Link
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => handleRegenerateLinkHardened(node.file!.id, node.file!.originalFilename, node.file!.fileSize)}
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Regenerate Link (Secure)
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  className="text-destructive"
-                  onClick={() => {
-                    setSelectedIds(new Set([node.id]))
-                    setDeleteFilesOpen(true)
-                  }}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </ContextMenuItem>
-              </>
-            )}
-          </ContextMenuContent>
-        </ContextMenu>
+        <DropdownMenu open={isMenuOpen} onOpenChange={(open) => setOpenMenuId(open ? node.id : null)}>
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <div>
+                  <DraggableItem
+                    node={node}
+                    depth={depth}
+                    isExpanded={isExpanded}
+                    isSelected={isSelected}
+                    isDragOver={isDragOver}
+                    isLast={isLast}
+                    parentIsLast={parentIsLast}
+                    selectedIds={selectedIds}
+                    onToggle={() => toggleFolder(node.id)}
+                    onSelect={(e) => handleSelect(node.id, e)}
+                    onMultiSelect={(checked) => handleMultiSelect(node.id, checked)}
+                    onDragStart={(e) => handleDragStart(e, node)}
+                    onDragOver={(e) => handleDragOver(e, node.id, node.type === "folder")}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => node.type === "folder" ? handleDrop(e, node.id) : undefined}
+                    onContextMenu={(e) => e.preventDefault()}
+                    onDoubleClick={() => {
+                      if (node.type === "folder") {
+                        toggleFolder(node.id)
+                      } else if (node.file) {
+                        setPreviewFile(node.file)
+                      }
+                    }}
+                    onMenuClick={(e) => {
+                      e.stopPropagation()
+                      setOpenMenuId(isMenuOpen ? null : node.id)
+                    }}
+                  />
+                </div>
+              </DropdownMenuTrigger>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              {renderMenuItems(node, false)}
+            </ContextMenuContent>
+          </ContextMenu>
+          <DropdownMenuContent align="end">
+            {renderMenuItems(node, true)}
+          </DropdownMenuContent>
+        </DropdownMenu>
         {node.type === "folder" && isExpanded && node.children?.map((child, idx) =>
           renderNode(
             child,

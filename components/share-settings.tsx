@@ -41,6 +41,7 @@ import {
   regenerateShareLinkAction,
   regenerateShareLinkHardenedAction,
   regenerateAllProjectLinksAction,
+  regenerateAllProjectLinksHardenedAction,
   type GlobalShareSettings,
   type ProjectShareSettings,
   type FileShareSettings,
@@ -284,7 +285,8 @@ export function ProjectShareSettingsModal({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
-  const [regenerateResult, setRegenerateResult] = useState<{ count: number } | null>(null)
+  const [regeneratingHardened, setRegeneratingHardened] = useState(false)
+  const [regenerateResult, setRegenerateResult] = useState<{ count: number; skipped?: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Form state - null means "inherit from global"
@@ -373,7 +375,7 @@ export function ProjectShareSettingsModal({
   }
 
   const handleRegenerateAllLinks = async () => {
-    if (!confirm(`Regenerate ALL share links for "${projectName}"? This will invalidate all existing share URLs for files in this project.`)) {
+    if (!confirm(`Reset ALL share links for "${projectName}"? This will invalidate all existing share URLs for files in this project.`)) {
       return
     }
 
@@ -389,6 +391,31 @@ export function ProjectShareSettingsModal({
       setError(result.error || "Failed to regenerate links")
     }
     setRegenerating(false)
+  }
+
+  const handleRegenerateAllLinksHardened = async () => {
+    if (!confirm(
+      `Secure regeneration for ALL files in "${projectName}"?\n\n` +
+      `This will download and re-upload each file to create completely new URLs. ` +
+      `Both share links AND underlying file URLs will be invalidated.\n\n` +
+      `Files larger than 50MB will be skipped.\n\n` +
+      `This may take a while for projects with many files.`
+    )) {
+      return
+    }
+
+    setRegeneratingHardened(true)
+    setError(null)
+    setRegenerateResult(null)
+
+    const result = await regenerateAllProjectLinksHardenedAction(projectId)
+    if (result.success) {
+      setRegenerateResult({ count: result.count || 0, skipped: result.skipped })
+      onSave?.()
+    } else {
+      setError(result.error || "Failed to regenerate links")
+    }
+    setRegeneratingHardened(false)
   }
 
   return (
@@ -544,32 +571,60 @@ export function ProjectShareSettingsModal({
                   Regenerate All Share Links
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Create new share URLs for all files in this project. This will invalidate all existing links.
+                  Create new share URLs for all files in this project.
                 </p>
               </div>
               {regenerateResult && (
                 <div className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
                   Successfully regenerated {regenerateResult.count} file link{regenerateResult.count !== 1 ? "s" : ""}.
+                  {regenerateResult.skipped !== undefined && regenerateResult.skipped > 0 && (
+                    <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                      {regenerateResult.skipped} file{regenerateResult.skipped !== 1 ? "s" : ""} skipped (too large).
+                    </span>
+                  )}
                 </div>
               )}
-              <Button
-                variant="outline"
-                onClick={handleRegenerateAllLinks}
-                disabled={regenerating || loading}
-                className="w-full"
-              >
-                {regenerating ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Regenerating...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Regenerate All Links
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleRegenerateAllLinks}
+                  disabled={regenerating || regeneratingHardened || loading}
+                  className="flex-1"
+                >
+                  {regenerating ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Reset All Links
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRegenerateAllLinksHardened}
+                  disabled={regenerating || regeneratingHardened || loading}
+                  className="flex-1"
+                >
+                  {regeneratingHardened ? (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Secure Reset All
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                <strong>Reset All:</strong> Creates new share URLs (fast). <strong>Secure Reset All:</strong> Re-uploads files to invalidate all URLs (slower, max 50MB each).
+              </p>
             </div>
           </div>
         )}

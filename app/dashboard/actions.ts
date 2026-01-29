@@ -1951,6 +1951,118 @@ export async function regenerateAllProjectLinksAction(
 }
 
 /**
+ * Regenerate share links for all files in a project with hardened security.
+ * This re-uploads each file to create new blob URLs, completely invalidating all old URLs.
+ * Limited to files under 50MB each due to serverless timeout constraints.
+ * Larger files are skipped with a warning.
+ */
+export async function regenerateAllProjectLinksHardenedAction(
+  projectId: string
+): Promise<{ success: boolean; count?: number; skipped?: number; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get all files in the project
+    const projectFiles = await db
+      .select({
+        id: files.id,
+        title: files.title,
+        blobUrl: files.blobUrl,
+        originalFilename: files.originalFilename,
+        mimeType: files.mimeType,
+        fileSize: files.fileSize,
+      })
+      .from(files)
+      .where(eq(files.projectId, projectId))
+
+    if (projectFiles.length === 0) {
+      return { success: true, count: 0, skipped: 0 }
+    }
+
+    let regeneratedCount = 0
+    let skippedCount = 0
+    const maxFileSize = 50 * 1024 * 1024 // 50MB limit
+
+    for (const file of projectFiles) {
+      // Skip files that are too large
+      if (file.fileSize > maxFileSize) {
+        skippedCount++
+        continue
+      }
+
+      try {
+        const oldBlobUrl = file.blobUrl
+
+        // Download the file
+        const response = await fetch(oldBlobUrl)
+        if (!response.ok) {
+          skippedCount++
+          continue
+        }
+
+        const fileBlob = await response.blob()
+
+        // Upload to new blob location
+        const newBlob = await put(file.originalFilename, fileBlob, {
+          access: "public",
+          contentType: file.mimeType || "application/octet-stream",
+          addRandomSuffix: true,
+        })
+
+        // Generate new public ID
+        const newPublicId = nanoid(21)
+
+        // Update database
+        await db
+          .update(files)
+          .set({
+            blobUrl: newBlob.url,
+            publicId: newPublicId,
+            updatedAt: new Date(),
+          })
+          .where(eq(files.id, file.id))
+
+        // Delete old blob (non-blocking)
+        try {
+          await del(oldBlobUrl)
+        } catch {
+          // Ignore delete errors
+        }
+
+        regeneratedCount++
+      } catch {
+        skippedCount++
+      }
+    }
+
+    // Get project name for audit log
+    const project = await db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
+    // SECURITY: Audit log for bulk hardened link regeneration
+    await logAuditAction(
+      "regenerate_all_links_hardened",
+      "project",
+      projectId,
+      project[0]?.name || null,
+      JSON.stringify({ regeneratedCount, skippedCount })
+    )
+
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    return { success: true, count: regeneratedCount, skipped: skippedCount }
+  } catch (error) {
+    console.error("Regenerate all project links (hardened) error:", error)
+    return { success: false, error: "Failed to regenerate project links" }
+  }
+}
+
+/**
  * Compute effective share settings for a file.
  * Resolution order: global → project → file (most restrictive wins for limits).
  * For boolean settings, inheritance is: file overrides project, project overrides global.
