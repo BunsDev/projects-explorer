@@ -63,6 +63,8 @@ import {
   Move,
   GripVertical,
   Settings2,
+  RefreshCw,
+  Link2,
 } from "lucide-react"
 import { FileShareSettingsModal } from "@/components/share-settings"
 import {
@@ -74,7 +76,9 @@ import {
   moveFilesAction,
   moveFolderAction,
   getFileContentAction,
+  regenerateShareLinkAction,
 } from "@/app/dashboard/actions"
+import { useToast } from "@/hooks/use-toast"
 
 // Types
 type TreeFolder = {
@@ -484,6 +488,32 @@ export function FileManager({
   const [shareSettingsFileId, setShareSettingsFileId] = useState<string | null>(null)
   const [shareSettingsFileName, setShareSettingsFileName] = useState<string>("")
 
+  // Toast for notifications
+  const { toast } = useToast()
+
+  // Handler to regenerate a file's share link
+  const handleRegenerateLink = useCallback(async (fileId: string, fileName: string) => {
+    const confirmed = confirm(`Regenerate share link for "${fileName}"? This will invalidate the current link.`)
+    if (!confirmed) return
+
+    const result = await regenerateShareLinkAction(fileId)
+    if (result.success && result.publicId) {
+      const newUrl = `${window.location.origin}/share/${result.publicId}`
+      await navigator.clipboard.writeText(newUrl)
+      toast({
+        title: "Link Regenerated",
+        description: "New share link copied to clipboard.",
+      })
+      onDataChange?.()
+    } else {
+      toast({
+        title: "Error",
+        description: result.error || "Failed to regenerate link",
+        variant: "destructive",
+      })
+    }
+  }, [toast, onDataChange])
+
   // Build tree
   const tree = buildTree(localFolders, localFiles)
 
@@ -819,6 +849,12 @@ export function FileManager({
                   <Settings2 className="mr-2 h-4 w-4" />
                   Share Settings
                 </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => handleRegenerateLink(node.file!.id, node.file!.originalFilename)}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Regenerate Link
+                </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem
                   className="text-destructive"
@@ -1059,6 +1095,7 @@ export function FileManager({
         <FileShareSettingsModal
           fileId={shareSettingsFileId}
           fileName={shareSettingsFileName}
+          projectId={projectId}
           open={!!shareSettingsFileId}
           onOpenChange={(open) => {
             if (!open) {

@@ -1788,6 +1788,64 @@ export async function regenerateShareLinkAction(
 }
 
 /**
+ * Regenerate share links for all files in a project.
+ * This invalidates all existing share URLs for the project.
+ */
+export async function regenerateAllProjectLinksAction(
+  projectId: string
+): Promise<{ success: boolean; count?: number; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get all files in the project
+    const projectFiles = await db
+      .select({ id: files.id, title: files.title })
+      .from(files)
+      .where(eq(files.projectId, projectId))
+
+    if (projectFiles.length === 0) {
+      return { success: true, count: 0 }
+    }
+
+    // Regenerate each file's publicId
+    let regeneratedCount = 0
+    for (const file of projectFiles) {
+      const newPublicId = nanoid(21)
+      await db
+        .update(files)
+        .set({ publicId: newPublicId, updatedAt: new Date() })
+        .where(eq(files.id, file.id))
+      regeneratedCount++
+    }
+
+    // Get project name for audit log
+    const project = await db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
+    // SECURITY: Audit log for bulk link regeneration
+    await logAuditAction(
+      "regenerate_all_links",
+      "project",
+      projectId,
+      project[0]?.name || null,
+      JSON.stringify({ fileCount: regeneratedCount })
+    )
+
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    return { success: true, count: regeneratedCount }
+  } catch (error) {
+    console.error("Regenerate all project links error:", error)
+    return { success: false, error: "Failed to regenerate project links" }
+  }
+}
+
+/**
  * Compute effective share settings for a file.
  * Resolution order: global → project → file (most restrictive wins for limits).
  * For boolean settings, inheritance is: file overrides project, project overrides global.

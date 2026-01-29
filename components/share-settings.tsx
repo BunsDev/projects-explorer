@@ -38,6 +38,7 @@ import {
   getFileShareSettingsAction,
   updateFileShareSettingsAction,
   regenerateShareLinkAction,
+  regenerateAllProjectLinksAction,
   type GlobalShareSettings,
   type ProjectShareSettings,
   type FileShareSettings,
@@ -132,10 +133,10 @@ export function GlobalShareSettingsCard({ onSave }: GlobalShareSettingsProps) {
               Default settings for all shared files. Projects and files can only be more restrictive.
             </CardDescription>
           </div>
-          <Badge variant="secondary">
+          {/* <Badge variant="secondary">
             <Shield className="h-3 w-3 mr-1" />
             Admin Only
-          </Badge>
+          </Badge> */}
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -277,8 +278,11 @@ export function ProjectShareSettingsModal({
   onSave,
 }: ProjectShareSettingsModalProps) {
   const [settings, setSettings] = useState<ProjectShareSettings | null>(null)
+  const [globalSettings, setGlobalSettings] = useState<GlobalShareSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [regenerateResult, setRegenerateResult] = useState<{ count: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Form state - null means "inherit from global"
@@ -291,21 +295,48 @@ export function ProjectShareSettingsModal({
   useEffect(() => {
     if (open) {
       loadSettings()
+      setRegenerateResult(null)
     }
   }, [open, projectId])
 
   const loadSettings = async () => {
     setLoading(true)
-    const result = await getProjectShareSettingsAction(projectId)
-    if (result.success && result.settings) {
-      setSettings(result.settings)
-      setShareEnabled(result.settings.shareEnabled)
-      setSharePasswordRequired(result.settings.sharePasswordRequired)
-      setShareExpiryDays(result.settings.shareExpiryDays?.toString() ?? "")
-      setShareDownloadLimitPerIp(result.settings.shareDownloadLimitPerIp?.toString() ?? "")
-      setShareDownloadLimitWindowMinutes(result.settings.shareDownloadLimitWindowMinutes?.toString() ?? "")
+    // Fetch both project and global settings
+    const [projectResult, globalResult] = await Promise.all([
+      getProjectShareSettingsAction(projectId),
+      getGlobalShareSettingsAction(),
+    ])
+    
+    if (globalResult.success && globalResult.settings) {
+      setGlobalSettings(globalResult.settings)
+    }
+    
+    if (projectResult.success && projectResult.settings) {
+      setSettings(projectResult.settings)
+      setShareEnabled(projectResult.settings.shareEnabled)
+      setSharePasswordRequired(projectResult.settings.sharePasswordRequired)
+      setShareExpiryDays(projectResult.settings.shareExpiryDays?.toString() ?? "")
+      setShareDownloadLimitPerIp(projectResult.settings.shareDownloadLimitPerIp?.toString() ?? "")
+      setShareDownloadLimitWindowMinutes(projectResult.settings.shareDownloadLimitWindowMinutes?.toString() ?? "")
     }
     setLoading(false)
+  }
+
+  // Helper to format inherited value display
+  const formatInheritedValue = (value: boolean | number | null | undefined, type: "boolean" | "number" | "days" | "minutes") => {
+    if (value === null || value === undefined) {
+      return type === "boolean" ? "Not set" : "No limit"
+    }
+    if (type === "boolean") {
+      return value ? "Enabled" : "Disabled"
+    }
+    if (type === "days") {
+      return `${value} day${value !== 1 ? "s" : ""}`
+    }
+    if (type === "minutes") {
+      return `${value} min`
+    }
+    return String(value)
   }
 
   const handleSave = async () => {
@@ -339,9 +370,28 @@ export function ProjectShareSettingsModal({
     setShareDownloadLimitWindowMinutes("")
   }
 
+  const handleRegenerateAllLinks = async () => {
+    if (!confirm(`Regenerate ALL share links for "${projectName}"? This will invalidate all existing share URLs for files in this project.`)) {
+      return
+    }
+
+    setRegenerating(true)
+    setError(null)
+    setRegenerateResult(null)
+
+    const result = await regenerateAllProjectLinksAction(projectId)
+    if (result.success) {
+      setRegenerateResult({ count: result.count || 0 })
+      onSave?.()
+    } else {
+      setError(result.error || "Failed to regenerate links")
+    }
+    setRegenerating(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5" />
@@ -369,7 +419,9 @@ export function ProjectShareSettingsModal({
               <div className="space-y-0.5">
                 <Label className="text-sm font-medium">Enable Sharing</Label>
                 <p className="text-xs text-muted-foreground">
-                  {shareEnabled === null ? "Inherits from global" : shareEnabled ? "Enabled" : "Disabled"}
+                  {shareEnabled === null 
+                    ? `Inherits from global: ${formatInheritedValue(globalSettings?.sharingEnabled, "boolean")}`
+                    : shareEnabled ? "Enabled" : "Disabled"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -377,14 +429,16 @@ export function ProjectShareSettingsModal({
                   variant={shareEnabled === null ? "secondary" : "ghost"}
                   size="sm"
                   onClick={() => setShareEnabled(null)}
+                  disabled={shareEnabled === null}
                 >
-                  Inherit
+                  Inherit{shareEnabled == null && "ed"}
                 </Button>
-                <Switch
+                {shareEnabled !== null && <Switch
                   checked={shareEnabled ?? true}
                   onCheckedChange={setShareEnabled}
                   disabled={shareEnabled === null}
                 />
+                }
               </div>
             </div>
 
@@ -399,10 +453,10 @@ export function ProjectShareSettingsModal({
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   {sharePasswordRequired === null
-                    ? "Inherits from global"
+                    ? `Inherits from global: ${globalSettings?.passwordRequired ? "Required" : "Optional"}`
                     : sharePasswordRequired
-                    ? "Required"
-                    : "Optional"}
+                      ? "Required"
+                      : "Optional"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -410,14 +464,16 @@ export function ProjectShareSettingsModal({
                   variant={sharePasswordRequired === null ? "secondary" : "ghost"}
                   size="sm"
                   onClick={() => setSharePasswordRequired(null)}
+                  disabled={sharePasswordRequired === null}
                 >
-                  Inherit
+                  Inherit{sharePasswordRequired == null && "ed"}
                 </Button>
-                <Switch
+                {sharePasswordRequired !== null && <Switch
                   checked={sharePasswordRequired ?? false}
                   onCheckedChange={setSharePasswordRequired}
                   disabled={sharePasswordRequired === null}
                 />
+                }
               </div>
             </div>
 
@@ -429,10 +485,13 @@ export function ProjectShareSettingsModal({
                 <Clock className="h-3 w-3" />
                 Default Expiry (days)
               </Label>
+              <p className="text-xs text-muted-foreground">
+                Global default: {formatInheritedValue(globalSettings?.defaultExpiryDays, "days")}
+              </p>
               <Input
                 type="number"
                 min="1"
-                placeholder="Inherit from global"
+                placeholder={globalSettings?.defaultExpiryDays ? `${globalSettings.defaultExpiryDays} (from global)` : "No limit (from global)"}
                 value={shareExpiryDays}
                 onChange={(e) => setShareExpiryDays(e.target.value)}
               />
@@ -447,24 +506,68 @@ export function ProjectShareSettingsModal({
                   <Download className="h-3 w-3" />
                   Download Limit per IP
                 </Label>
+                <p className="text-xs text-muted-foreground">
+                  Global default: {formatInheritedValue(globalSettings?.downloadLimitPerIp, "number")}
+                </p>
                 <Input
                   type="number"
                   min="1"
-                  placeholder="Inherit from global"
+                  placeholder={globalSettings?.downloadLimitPerIp ? `${globalSettings.downloadLimitPerIp} (from global)` : "No limit (from global)"}
                   value={shareDownloadLimitPerIp}
                   onChange={(e) => setShareDownloadLimitPerIp(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium">Time Window (minutes)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Global default: {formatInheritedValue(globalSettings?.downloadLimitWindowMinutes, "minutes")}
+                </p>
                 <Input
                   type="number"
                   min="1"
-                  placeholder="Inherit from global"
+                  placeholder={globalSettings?.downloadLimitWindowMinutes ? `${globalSettings.downloadLimitWindowMinutes} (from global)` : "60 (from global)"}
                   value={shareDownloadLimitWindowMinutes}
                   onChange={(e) => setShareDownloadLimitWindowMinutes(e.target.value)}
                 />
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Regenerate All Links */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <RefreshCw className="h-3 w-3" />
+                  Regenerate All Share Links
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Create new share URLs for all files in this project. This will invalidate all existing links.
+                </p>
+              </div>
+              {regenerateResult && (
+                <div className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
+                  Successfully regenerated {regenerateResult.count} file link{regenerateResult.count !== 1 ? "s" : ""}.
+                </div>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleRegenerateAllLinks}
+                disabled={regenerating || loading}
+                className="w-full"
+              >
+                {regenerating ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Regenerate All Links
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         )}
@@ -487,6 +590,7 @@ export function ProjectShareSettingsModal({
 interface FileShareSettingsModalProps {
   fileId: string
   fileName: string
+  projectId?: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave?: () => void
@@ -495,11 +599,14 @@ interface FileShareSettingsModalProps {
 export function FileShareSettingsModal({
   fileId,
   fileName,
+  projectId,
   open,
   onOpenChange,
   onSave,
 }: FileShareSettingsModalProps) {
   const [settings, setSettings] = useState<FileShareSettings | null>(null)
+  const [projectSettings, setProjectSettings] = useState<ProjectShareSettings | null>(null)
+  const [globalSettings, setGlobalSettings] = useState<GlobalShareSettings | null>(null)
   const [publicId, setPublicId] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -525,21 +632,74 @@ export function FileShareSettingsModal({
     setLoading(true)
     setNewPassword("")
     setRemovePassword(false)
-    const result = await getFileShareSettingsAction(fileId)
-    if (result.success && result.settings) {
-      setSettings(result.settings)
-      setPublicId(result.publicId || "")
-      setShareEnabled(result.settings.shareEnabled)
+    
+    // Fetch file settings, project settings (if projectId), and global settings
+    const promises: Promise<unknown>[] = [
+      getFileShareSettingsAction(fileId),
+      getGlobalShareSettingsAction(),
+    ]
+    if (projectId) {
+      promises.push(getProjectShareSettingsAction(projectId))
+    }
+    
+    const results = await Promise.all(promises)
+    const fileResult = results[0] as Awaited<ReturnType<typeof getFileShareSettingsAction>>
+    const globalResult = results[1] as Awaited<ReturnType<typeof getGlobalShareSettingsAction>>
+    const projectResult = results[2] as Awaited<ReturnType<typeof getProjectShareSettingsAction>> | undefined
+    
+    if (globalResult.success && globalResult.settings) {
+      setGlobalSettings(globalResult.settings)
+    }
+    
+    if (projectResult?.success && projectResult.settings) {
+      setProjectSettings(projectResult.settings)
+    }
+    
+    if (fileResult.success && fileResult.settings) {
+      setSettings(fileResult.settings)
+      setPublicId(fileResult.publicId || "")
+      setShareEnabled(fileResult.settings.shareEnabled)
       setExpiresAt(
-        result.settings.expiresAt
-          ? new Date(result.settings.expiresAt).toISOString().slice(0, 16)
+        fileResult.settings.expiresAt
+          ? new Date(fileResult.settings.expiresAt).toISOString().slice(0, 16)
           : ""
       )
-      setDownloadLimitPerIp(result.settings.downloadLimitPerIp?.toString() ?? "")
-      setDownloadLimitWindowMinutes(result.settings.downloadLimitWindowMinutes?.toString() ?? "")
+      setDownloadLimitPerIp(fileResult.settings.downloadLimitPerIp?.toString() ?? "")
+      setDownloadLimitWindowMinutes(fileResult.settings.downloadLimitWindowMinutes?.toString() ?? "")
     }
     setLoading(false)
   }
+
+  // Compute effective inherited values (project overrides global)
+  const getEffectiveInheritedValue = <T,>(
+    projectValue: T | null | undefined,
+    globalValue: T | null | undefined
+  ): { value: T | null | undefined; source: "project" | "global" } => {
+    if (projectValue !== null && projectValue !== undefined) {
+      return { value: projectValue, source: "project" }
+    }
+    return { value: globalValue, source: "global" }
+  }
+
+  const effectiveSharingEnabled = getEffectiveInheritedValue(
+    projectSettings?.shareEnabled,
+    globalSettings?.sharingEnabled
+  )
+  const effectiveDownloadLimit = getEffectiveInheritedValue(
+    projectSettings?.shareDownloadLimitPerIp,
+    globalSettings?.downloadLimitPerIp
+  )
+  const effectiveDownloadWindow = getEffectiveInheritedValue(
+    projectSettings?.shareDownloadLimitWindowMinutes,
+    globalSettings?.downloadLimitWindowMinutes
+  )
+  const effectiveExpiryDays = getEffectiveInheritedValue(
+    projectSettings?.shareExpiryDays,
+    globalSettings?.defaultExpiryDays
+  )
+
+  const formatInheritedSource = (source: "project" | "global") => 
+    source === "project" ? "from project" : "from global"
 
   const handleSave = async () => {
     setSaving(true)
@@ -653,7 +813,9 @@ export function FileShareSettingsModal({
               <div className="space-y-0.5">
                 <Label className="text-sm font-medium">Enable Sharing</Label>
                 <p className="text-xs text-muted-foreground">
-                  {shareEnabled === null ? "Inherits from project/global" : shareEnabled ? "Enabled" : "Disabled"}
+                  {shareEnabled === null 
+                    ? `Inherits ${formatInheritedSource(effectiveSharingEnabled.source)}: ${effectiveSharingEnabled.value === false ? "Disabled" : "Enabled"}`
+                    : shareEnabled ? "Enabled" : "Disabled"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -661,14 +823,16 @@ export function FileShareSettingsModal({
                   variant={shareEnabled === null ? "secondary" : "ghost"}
                   size="sm"
                   onClick={() => setShareEnabled(null)}
-                >
-                  Inherit
-                </Button>
-                <Switch
-                  checked={shareEnabled ?? true}
-                  onCheckedChange={setShareEnabled}
                   disabled={shareEnabled === null}
-                />
+                >
+                  Inherit{shareEnabled === null && "ed"}
+                </Button>
+                {shareEnabled !== null && (
+                  <Switch
+                    checked={shareEnabled ?? true}
+                    onCheckedChange={setShareEnabled}
+                  />
+                )}
               </div>
             </div>
 
@@ -712,6 +876,9 @@ export function FileShareSettingsModal({
                 <Clock className="h-3 w-3" />
                 Expiration Date
               </Label>
+              <p className="text-xs text-muted-foreground">
+                Default expiry {formatInheritedSource(effectiveExpiryDays.source)}: {effectiveExpiryDays.value ? `${effectiveExpiryDays.value} day${effectiveExpiryDays.value !== 1 ? "s" : ""}` : "No limit"}
+              </p>
               <Input
                 type="datetime-local"
                 value={expiresAt}
@@ -734,20 +901,26 @@ export function FileShareSettingsModal({
                   <Download className="h-3 w-3" />
                   Download Limit per IP
                 </Label>
+                <p className="text-xs text-muted-foreground">
+                  Inherited {formatInheritedSource(effectiveDownloadLimit.source)}: {effectiveDownloadLimit.value ?? "No limit"}
+                </p>
                 <Input
                   type="number"
                   min="1"
-                  placeholder="Inherit from project/global"
+                  placeholder={effectiveDownloadLimit.value ? `${effectiveDownloadLimit.value} (${formatInheritedSource(effectiveDownloadLimit.source)})` : `No limit (${formatInheritedSource(effectiveDownloadLimit.source)})`}
                   value={downloadLimitPerIp}
                   onChange={(e) => setDownloadLimitPerIp(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium">Time Window (minutes)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Inherited {formatInheritedSource(effectiveDownloadWindow.source)}: {effectiveDownloadWindow.value ?? 60} min
+                </p>
                 <Input
                   type="number"
                   min="1"
-                  placeholder="Inherit from project/global"
+                  placeholder={`${effectiveDownloadWindow.value ?? 60} (${formatInheritedSource(effectiveDownloadWindow.source)})`}
                   value={downloadLimitWindowMinutes}
                   onChange={(e) => setDownloadLimitWindowMinutes(e.target.value)}
                 />
