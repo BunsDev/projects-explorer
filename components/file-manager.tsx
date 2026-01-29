@@ -513,6 +513,12 @@ export function FileManager({
   const [shareSettingsFileName, setShareSettingsFileName] = useState<string>("")
   const [shareSettingsFileSize, setShareSettingsFileSize] = useState<number>(0)
 
+  // Move file dialog state
+  const [moveFileOpen, setMoveFileOpen] = useState(false)
+  const [moveFileId, setMoveFileId] = useState<string | null>(null)
+  const [moveFileName, setMoveFileName] = useState<string>("")
+  const [selectedTargetFolder, setSelectedTargetFolder] = useState<string | null>(null)
+
   // Dropdown menu state for tree items
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 

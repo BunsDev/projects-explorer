@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, Upload, Settings } from "lucide-react"
@@ -23,6 +23,12 @@ const navItems = [
 export function DashboardBottomNav() {
   const pathname = usePathname()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  
+  // Hydration fix: defer Dialog rendering until after mount
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <nav
@@ -59,36 +65,52 @@ export function DashboardBottomNav() {
         })}
 
         {/* Settings Modal Trigger */}
-        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 px-3 text-xs font-medium transition-colors",
-                "text-muted-foreground hover:text-foreground"
-              )}
-              suppressHydrationWarning
-            >
-              <Settings
-                className="size-6 shrink-0"
-                strokeWidth={2}
-                aria-hidden
-              />
-              <span className="truncate">Settings</span>
-            </button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Global Settings</DialogTitle>
-              <DialogDescription>
-                Configure global defaults for sharing and security.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <GlobalShareSettingsCard onSave={() => setSettingsOpen(false)} />
-            </div>
-          </DialogContent>
-        </Dialog>
+        {mounted ? (
+          <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 px-3 text-xs font-medium transition-colors",
+                  "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Settings
+                  className="size-6 shrink-0"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+                <span className="truncate">Settings</span>
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Global Settings</DialogTitle>
+                <DialogDescription>
+                  Configure global defaults for sharing and security.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <GlobalShareSettingsCard onSave={() => setSettingsOpen(false)} />
+              </div>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <button
+            type="button"
+            className={cn(
+              "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 px-3 text-xs font-medium transition-colors",
+              "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Settings
+              className="size-6 shrink-0"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <span className="truncate">Settings</span>
+          </button>
+        )}
       </div>
     </nav>
   )

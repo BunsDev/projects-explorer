@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,6 +44,12 @@ export function CategoryManager({ categories, onCategoriesChange }: CategoryMana
   const [color, setColor] = useState("blue")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  
+  // Hydration fix: defer Dialog rendering until after mount
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const resetForm = () => {
     setName("")
@@ -110,10 +116,19 @@ export function CategoryManager({ categories, onCategoriesChange }: CategoryMana
     resetForm()
   }
 
+  if (!mounted) {
+    return (
+      <Button variant="outline" size="sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
+        <ListOrdered className="size-4" />
+        <span className="sr-only">Categories</span>
+      </Button>
+    )
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground" suppressHydrationWarning>
+        <Button variant="outline" size="sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
           <ListOrdered className="size-4" />
           <span className="sr-only">Categories</span>
         </Button>

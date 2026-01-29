@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Archive, LogOut, Plus, Settings } from "lucide-react"
+import { LogOut, Plus, Settings } from "lucide-react"
 import Link from "next/link"
 import { logoutAction } from "@/app/dashboard/actions"
 import Image from "next/image"
@@ -26,6 +26,12 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
   const pathname = usePathname()
   const isUploadPage = pathname === "/dashboard/upload"
   const [settingsOpen, setSettingsOpen] = useState(false)
+  
+  // Hydration fix: defer Dialog rendering until after mount
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <header className="glass-header rounded-b-2xl px-4 sm:px-6 py-1.5 sticky top-0 z-50 w-full mx-auto">
@@ -39,25 +45,32 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
           <ThemeToggle />
           
           {/* Global Settings Modal */}
-          <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="hover:bg-accent/50" suppressHydrationWarning>
-                <Settings className="size-4" />
-                <span className="sr-only">Global Settings</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Global Settings</DialogTitle>
-                <DialogDescription>
-                  Configure global defaults for sharing and security.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <GlobalShareSettingsCard onSave={() => setSettingsOpen(false)} />
-              </div>
-            </DialogContent>
-          </Dialog>
+          {mounted ? (
+            <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="hover:bg-accent/50">
+                  <Settings className="size-4" />
+                  <span className="sr-only">Global Settings</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Global Settings</DialogTitle>
+                  <DialogDescription>
+                    Configure global defaults for sharing and security.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <GlobalShareSettingsCard onSave={() => setSettingsOpen(false)} />
+                </div>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Button variant="ghost" size="sm" className="hover:bg-accent/50">
+              <Settings className="size-4" />
+              <span className="sr-only">Global Settings</span>
+            </Button>
+          )}
 
           {isUploadPage && <Link href="/dashboard/upload">
             <Button variant="glass" size="sm">

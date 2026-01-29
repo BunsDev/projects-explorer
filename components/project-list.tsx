@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -87,6 +87,12 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Hydration fix: defer Dialog rendering until after mount
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Form state
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -140,14 +146,14 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
     // Build share settings object only if any settings were configured
     const shareSettings: CreateProjectShareSettings | undefined = showShareSettings
       ? {
-          shareEnabled,
-          sharePasswordRequired,
-          shareExpiryDays: shareExpiryDays ? parseInt(shareExpiryDays, 10) : null,
-          shareDownloadLimitPerIp: shareDownloadLimitPerIp ? parseInt(shareDownloadLimitPerIp, 10) : null,
-          shareDownloadLimitWindowMinutes: shareDownloadLimitWindowMinutes
-            ? parseInt(shareDownloadLimitWindowMinutes, 10)
-            : null,
-        }
+        shareEnabled,
+        sharePasswordRequired,
+        shareExpiryDays: shareExpiryDays ? parseInt(shareExpiryDays, 10) : null,
+        shareDownloadLimitPerIp: shareDownloadLimitPerIp ? parseInt(shareDownloadLimitPerIp, 10) : null,
+        shareDownloadLimitWindowMinutes: shareDownloadLimitWindowMinutes
+          ? parseInt(shareDownloadLimitWindowMinutes, 10)
+          : null,
+      }
       : undefined
 
     const result = await createProjectAction(name, description, categoryId || undefined, url || undefined, shareSettings)
@@ -260,236 +266,243 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
         </div>
         <div className="flex items-center gap-2">
           <CategoryManager categories={categories} onCategoriesChange={refreshCategories} />
-          <Dialog
-            open={isCreateOpen}
-            onOpenChange={(open) => {
-              setIsCreateOpen(open)
-              if (!open) resetForm()
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button suppressHydrationWarning>
-                <Plus className="mr-2 h-4 w-4" />
-                New Project
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-                <DialogDescription>
-                  Add a new project to organize your files
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="Project name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description (optional)</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Describe your project"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="url">Project URL (optional)</Label>
-                  <Input
-                    id="url"
-                    type="url"
-                    placeholder="https://example.com"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Link to deployed site or repository
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={categoryId || "none"}
-                    onValueChange={(val) => setCategoryId(val === "none" ? null : val)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No category</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "h-2 w-2 rounded-full",
-                                getCategoryColorClasses(cat.color).bg
-                              )}
-                            />
-                            {cat.name}
-                            {cat.isDefault && (
-                              <span className="text-xs text-muted-foreground">(default)</span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Share Settings Collapsible */}
-                <Collapsible open={showShareSettings} onOpenChange={setShowShareSettings}>
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="w-full justify-between px-0 hover:bg-transparent"
-                    >
-                      <span className="flex items-center gap-2 text-sm font-medium">
-                        <Shield className="h-4 w-4" />
-                        Share Settings (Optional)
-                      </span>
-                      {showShareSettings ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-4 pt-2">
+          {mounted ? (
+            <Dialog
+              open={isCreateOpen}
+              onOpenChange={(open) => {
+                setIsCreateOpen(open)
+                if (!open) resetForm()
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button variant="outline" size="icon" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
+                  <Plus className="size-4" />
+                  <span className="sr-only">New Project</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Project</DialogTitle>
+                  <DialogDescription>
+                    Add a new project to organize your files
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      placeholder="Project name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description (optional)</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Describe your project"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="url">Project URL (optional)</Label>
+                    <Input
+                      id="url"
+                      type="url"
+                      placeholder="https://example.com"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                    />
                     <p className="text-xs text-muted-foreground">
-                      Configure default share settings for this project. Leave empty to inherit from global settings.
+                      Link to deployed site or repository
                     </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Select
+                      value={categoryId || "none"}
+                      onValueChange={(val) => setCategoryId(val === "none" ? null : val)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No category</SelectItem>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "h-2 w-2 rounded-full",
+                                  getCategoryColorClasses(cat.color).bg
+                                )}
+                              />
+                              {cat.name}
+                              {cat.isDefault && (
+                                <span className="text-xs text-muted-foreground">(default)</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                    {/* Enable Sharing */}
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label className="text-sm font-medium">Enable Sharing</Label>
-                        <p className="text-xs text-muted-foreground">
-                          {shareEnabled === null
-                            ? "Inherits from global"
-                            : shareEnabled
-                            ? "Enabled"
-                            : "Disabled"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant={shareEnabled === null ? "secondary" : "ghost"}
-                          size="sm"
-                          onClick={() => setShareEnabled(null)}
-                        >
-                          Inherit
-                        </Button>
-                        <Switch
-                          checked={shareEnabled ?? true}
-                          onCheckedChange={setShareEnabled}
-                          disabled={shareEnabled === null}
-                        />
-                      </div>
-                    </div>
+                  {/* Share Settings Collapsible */}
+                  <Collapsible open={showShareSettings} onOpenChange={setShowShareSettings}>
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full justify-between px-0 hover:bg-transparent"
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <Shield className="h-4 w-4" />
+                          Share Settings (Optional)
+                        </span>
+                        {showShareSettings ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-4 pt-2">
+                      <p className="text-xs text-muted-foreground">
+                        Configure default share settings for this project. Leave empty to inherit from global settings.
+                      </p>
 
-                    {/* Require Password */}
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label className="text-sm font-medium flex items-center gap-2">
-                          <Lock className="h-3 w-3" />
-                          Require Password
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          {sharePasswordRequired === null
-                            ? "Inherits from global"
-                            : sharePasswordRequired
-                            ? "Required"
-                            : "Optional"}
-                        </p>
+                      {/* Enable Sharing */}
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-medium">Enable Sharing</Label>
+                          <p className="text-xs text-muted-foreground">
+                            {shareEnabled === null
+                              ? "Inherits from global"
+                              : shareEnabled
+                                ? "Enabled"
+                                : "Disabled"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant={shareEnabled === null ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={() => setShareEnabled(null)}
+                          >
+                            Inherit
+                          </Button>
+                          <Switch
+                            checked={shareEnabled ?? true}
+                            onCheckedChange={setShareEnabled}
+                            disabled={shareEnabled === null}
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant={sharePasswordRequired === null ? "secondary" : "ghost"}
-                          size="sm"
-                          onClick={() => setSharePasswordRequired(null)}
-                        >
-                          Inherit
-                        </Button>
-                        <Switch
-                          checked={sharePasswordRequired ?? false}
-                          onCheckedChange={setSharePasswordRequired}
-                          disabled={sharePasswordRequired === null}
-                        />
+
+                      {/* Require Password */}
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-medium flex items-center gap-2">
+                            <Lock className="h-3 w-3" />
+                            Require Password
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            {sharePasswordRequired === null
+                              ? "Inherits from global"
+                              : sharePasswordRequired
+                                ? "Required"
+                                : "Optional"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant={sharePasswordRequired === null ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={() => setSharePasswordRequired(null)}
+                          >
+                            Inherit
+                          </Button>
+                          <Switch
+                            checked={sharePasswordRequired ?? false}
+                            onCheckedChange={setSharePasswordRequired}
+                            disabled={sharePasswordRequired === null}
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Expiry Days */}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium flex items-center gap-2">
-                        <Clock className="h-3 w-3" />
-                        Default Expiry (days)
-                      </Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        placeholder="Inherit from global"
-                        value={shareExpiryDays}
-                        onChange={(e) => setShareExpiryDays(e.target.value)}
-                      />
-                    </div>
-
-                    {/* Download Limit */}
-                    <div className="space-y-3">
+                      {/* Expiry Days */}
                       <div className="space-y-2">
                         <Label className="text-sm font-medium flex items-center gap-2">
-                          <Download className="h-3 w-3" />
-                          Download Limit per IP
+                          <Clock className="h-3 w-3" />
+                          Default Expiry (days)
                         </Label>
                         <Input
                           type="number"
                           min="1"
                           placeholder="Inherit from global"
-                          value={shareDownloadLimitPerIp}
-                          onChange={(e) => setShareDownloadLimitPerIp(e.target.value)}
+                          value={shareExpiryDays}
+                          onChange={(e) => setShareExpiryDays(e.target.value)}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium">Time Window (minutes)</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          placeholder="Inherit from global"
-                          value={shareDownloadLimitWindowMinutes}
-                          onChange={(e) => setShareDownloadLimitWindowMinutes(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
 
-                {error && <p className="text-sm text-destructive">{error}</p>}
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsCreateOpen(false)
-                    resetForm()
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleCreate} disabled={isLoading || !name.trim()}>
-                  {isLoading ? "Creating..." : "Create Project"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                      {/* Download Limit */}
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium flex items-center gap-2">
+                            <Download className="h-3 w-3" />
+                            Download Limit per IP
+                          </Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Inherit from global"
+                            value={shareDownloadLimitPerIp}
+                            onChange={(e) => setShareDownloadLimitPerIp(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium">Time Window (minutes)</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Inherit from global"
+                            value={shareDownloadLimitWindowMinutes}
+                            onChange={(e) => setShareDownloadLimitWindowMinutes(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsCreateOpen(false)
+                      resetForm()
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreate} disabled={isLoading || !name.trim()}>
+                    {isLoading ? "Creating..." : "Create Project"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Button variant="outline" size="icon" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
+              <Plus className="size-4" />
+              <span className="sr-only">New Project</span>
+            </Button>
+          )}
         </div>
       </div>
 

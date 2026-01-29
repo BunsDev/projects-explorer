@@ -118,6 +118,12 @@ export function ProjectDetailClient({
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "tree">("tree")
 
+  // Hydration fix: defer rendering of Radix components until after mount
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Deployed URL state
   const [deployedUrl, setDeployedUrl] = useState(project.deployedUrl || "")
   const [isEditingUrl, setIsEditingUrl] = useState(false)
@@ -222,88 +228,88 @@ export function ProjectDetailClient({
           <BreadcrumbNav items={getBreadcrumbPath()} />
           <div className="flex items-center gap-2 flex-wrap">
             {/* Deployed URL button/indicator */}
-            <Dialog open={isEditingUrl} onOpenChange={setIsEditingUrl}>
-              <DialogTrigger asChild>
-                {deployedUrl ? (
-                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground" suppressHydrationWarning>
+            {mounted ? (
+              <Dialog open={isEditingUrl} onOpenChange={setIsEditingUrl}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
                     <Globe className="size-4" />
-                    <span className="hidden sm:inline">Preview URL</span>
-                    </Button>
-                ) : (
-                  <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground" suppressHydrationWarning>
-                    <Globe className="size-4" />
-                    <span className="hidden sm:inline">Add Preview URL</span>
-                    </Button>
-                )}
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Deployed Preview URL</DialogTitle>
-                  <DialogDescription>
-                    Add a deployment URL to preview your project live. This could be a Vercel, Netlify, or any other hosted URL.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="deployed-url">Preview URL</Label>
-                    <Input
-                      id="deployed-url"
-                      placeholder="https://"
-                      value={urlInput}
-                      onChange={(e) => {
-                        setUrlInput(e.target.value)
-                        setUrlError(null)
-                      }}
-                    />
-                    {urlError && (
-                      <p className="text-sm text-destructive">{urlError}</p>
+                    <span className="hidden sm:inline">{deployedUrl ? "Preview URL" : "Add Preview URL"}</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Deployed Preview URL</DialogTitle>
+                    <DialogDescription>
+                      Add a deployment URL to preview your project live. This could be a Vercel, Netlify, or any other hosted URL.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="deployed-url">Preview URL</Label>
+                      <Input
+                        id="deployed-url"
+                        placeholder="https://"
+                        value={urlInput}
+                        onChange={(e) => {
+                          setUrlInput(e.target.value)
+                          setUrlError(null)
+                        }}
+                      />
+                      {urlError && (
+                        <p className="text-sm text-destructive">{urlError}</p>
+                      )}
+                    </div>
+                    {deployedUrl && (
+                      <div className="flex items-center gap-2 rounded-lg border bg-muted/50 p-3">
+                        <Globe className="h-4 w-4 text-green-500" />
+                        <a
+                          href={deployedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 truncate text-sm text-primary hover:underline"
+                        >
+                          {deployedUrl}
+                        </a>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => window.open(deployedUrl, "_blank")}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  {deployedUrl && (
-                    <div className="flex items-center gap-2 rounded-lg border bg-muted/50 p-3">
-                      <Globe className="h-4 w-4 text-green-500" />
-                      <a
-                        href={deployedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 truncate text-sm text-primary hover:underline"
-                      >
-                        {deployedUrl}
-                      </a>
+                  <DialogFooter className="flex-col gap-2 sm:flex-row">
+                    {deployedUrl && (
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => window.open(deployedUrl, "_blank")}
+                        variant="outline"
+                        onClick={handleRemoveDeployedUrl}
+                        disabled={isSavingUrl}
+                        className="text-destructive hover:text-destructive bg-transparent"
                       >
-                        <ExternalLink className="h-3 w-3" />
+                        <X className="mr-2 h-4 w-4" />
+                        Remove URL
+                      </Button>
+                    )}
+                    <div className="flex gap-2 sm:ml-auto">
+                      <Button variant="outline" onClick={() => setIsEditingUrl(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSaveDeployedUrl} disabled={isSavingUrl}>
+                        {isSavingUrl ? "Saving..." : "Save URL"}
                       </Button>
                     </div>
-                  )}
-                </div>
-                <DialogFooter className="flex-col gap-2 sm:flex-row">
-                  {deployedUrl && (
-                    <Button
-                      variant="outline"
-                      onClick={handleRemoveDeployedUrl}
-                      disabled={isSavingUrl}
-                      className="text-destructive hover:text-destructive bg-transparent"
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Remove URL
-                    </Button>
-                  )}
-                  <div className="flex gap-2 sm:ml-auto">
-                    <Button variant="outline" onClick={() => setIsEditingUrl(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleSaveDeployedUrl} disabled={isSavingUrl}>
-                      {isSavingUrl ? "Saving..." : "Save URL"}
-                    </Button>
-                  </div>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            ) : (
+              <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
+                <Globe className="size-4" />
+                <span className="hidden sm:inline">{deployedUrl ? "Preview URL" : "Add Preview URL"}</span>
+              </Button>
+            )}
 
             {/* Open deployed preview in new tab if exists */}
             {deployedUrl && (
