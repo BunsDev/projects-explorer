@@ -41,7 +41,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe, ExternalLink, HardDrive } from "lucide-react"
+import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe, ExternalLink, HardDrive, ChevronDown, ChevronRight, Lock, Clock, Download, Shield } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   createProjectAction,
   updateProjectAction,
@@ -50,6 +52,7 @@ import {
   getCategoriesAction,
   type Category,
   type Project,
+  type CreateProjectShareSettings,
 } from "@/app/dashboard/actions"
 import { CATEGORY_COLORS } from "@/lib/constants"
 import { CategoryManager } from "@/components/category-manager"
@@ -90,6 +93,14 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [url, setUrl] = useState("")
 
+  // Share settings state (for create dialog)
+  const [showShareSettings, setShowShareSettings] = useState(false)
+  const [shareEnabled, setShareEnabled] = useState<boolean | null>(null)
+  const [sharePasswordRequired, setSharePasswordRequired] = useState<boolean | null>(null)
+  const [shareExpiryDays, setShareExpiryDays] = useState<string>("")
+  const [shareDownloadLimitPerIp, setShareDownloadLimitPerIp] = useState<string>("")
+  const [shareDownloadLimitWindowMinutes, setShareDownloadLimitWindowMinutes] = useState<string>("")
+
   // Get default category for new projects
   const defaultCategory = categories.find((c) => c.isDefault)
 
@@ -99,6 +110,13 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
     setCategoryId(defaultCategory?.id || null)
     setUrl("")
     setError(null)
+    // Reset share settings
+    setShowShareSettings(false)
+    setShareEnabled(null)
+    setSharePasswordRequired(null)
+    setShareExpiryDays("")
+    setShareDownloadLimitPerIp("")
+    setShareDownloadLimitWindowMinutes("")
   }
 
   const refreshCategories = useCallback(async () => {
@@ -119,7 +137,20 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
     setIsLoading(true)
     setError(null)
 
-    const result = await createProjectAction(name, description, categoryId || undefined, url || undefined)
+    // Build share settings object only if any settings were configured
+    const shareSettings: CreateProjectShareSettings | undefined = showShareSettings
+      ? {
+          shareEnabled,
+          sharePasswordRequired,
+          shareExpiryDays: shareExpiryDays ? parseInt(shareExpiryDays, 10) : null,
+          shareDownloadLimitPerIp: shareDownloadLimitPerIp ? parseInt(shareDownloadLimitPerIp, 10) : null,
+          shareDownloadLimitWindowMinutes: shareDownloadLimitWindowMinutes
+            ? parseInt(shareDownloadLimitWindowMinutes, 10)
+            : null,
+        }
+      : undefined
+
+    const result = await createProjectAction(name, description, categoryId || undefined, url || undefined, shareSettings)
 
     if (result.success && result.projectId) {
       const assignedCategory = categoryId
@@ -465,28 +496,14 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                 )}
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  {project.categoryName && (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "border",
-                        getCategoryColorClasses(project.categoryColor).bg,
-                        getCategoryColorClasses(project.categoryColor).text,
-                        getCategoryColorClasses(project.categoryColor).border
-                      )}
-                    >
-                      {project.categoryName}
-                    </Badge>
-                  )}
-
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <FileArchive className="h-4 w-4" />
-                    <span className="font-medium">{project.fileCount} {project.fileCount === 1 ? "file" : "files"}</span>
+                <div className="flex flex-wrap justify-end items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1 border border-primary/20 rounded-full px-2 py-0.5">
+                    <FileArchive className="size-3 text-primary" strokeWidth={1.5} />
+                    <span className="font-medium text-primary">{project.fileCount} {project.fileCount === 1 ? "file" : "files"}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <HardDrive className="h-4 w-4" />
-                    <span>{formatBytes(project.totalSize)}</span>
+                  <div className="flex items-center gap-1 border border-primary/20 rounded-full px-2 py-0.5">
+                    <HardDrive className="size-3 text-primary" strokeWidth={1.5} />
+                    <span className="font-medium text-primary">{formatBytes(project.totalSize)}</span>
                   </div>
                 </div>
               </CardContent>

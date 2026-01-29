@@ -414,11 +414,20 @@ export async function assignProjectCategoryAction(
 
 // ============ PROJECT ACTIONS ============
 
+export type CreateProjectShareSettings = {
+  shareEnabled?: boolean | null
+  sharePasswordRequired?: boolean | null
+  shareExpiryDays?: number | null
+  shareDownloadLimitPerIp?: number | null
+  shareDownloadLimitWindowMinutes?: number | null
+}
+
 export async function createProjectAction(
   name: string,
   description?: string,
   categoryId?: string,
-  url?: string
+  url?: string,
+  shareSettings?: CreateProjectShareSettings
 ): Promise<{ success: boolean; error?: string; projectId?: string }> {
   const auth = await requireAuthAction()
   if (!auth.authorized) {
@@ -463,6 +472,12 @@ export async function createProjectAction(
         description: description?.trim() || null,
         categoryId: finalCategoryId,
         deployedUrl: url?.trim() || null,
+        // Optional share settings
+        shareEnabled: shareSettings?.shareEnabled ?? null,
+        sharePasswordRequired: shareSettings?.sharePasswordRequired ?? null,
+        shareExpiryDays: shareSettings?.shareExpiryDays ?? null,
+        shareDownloadLimitPerIp: shareSettings?.shareDownloadLimitPerIp ?? null,
+        shareDownloadLimitWindowMinutes: shareSettings?.shareDownloadLimitWindowMinutes ?? null,
       })
       .returning({ id: projects.id })
 

@@ -208,13 +208,13 @@ function buildTree(folders: TreeFolder[], files: TreeFile[]): TreeNode[] {
 // Tree line connector component for visual hierarchy
 function TreeConnector({ depth, isLast, parentIsLast }: { depth: number; isLast: boolean; parentIsLast: boolean[] }) {
   if (depth === 0) return null
-  
+
   return (
     <div className="flex" style={{ width: `${depth * 20}px` }}>
       {Array.from({ length: depth }).map((_, i) => {
         const showVerticalLine = i < depth - 1 && !parentIsLast[i]
         const isLastLevel = i === depth - 1
-        
+
         return (
           <div key={i} className="relative w-5 h-full flex-shrink-0">
             {/* Vertical line continuing from parent */}
@@ -225,11 +225,11 @@ function TreeConnector({ depth, isLast, parentIsLast }: { depth: number; isLast:
             {isLastLevel && (
               <>
                 {/* Vertical line to current item */}
-                <div 
+                <div
                   className={cn(
                     "absolute left-2 w-px bg-border",
                     isLast ? "top-0 h-3.5" : "top-0 bottom-0"
-                  )} 
+                  )}
                 />
                 {/* Horizontal line to item */}
                 <div className="absolute left-2 top-3.5 w-2.5 h-px bg-border" />
@@ -834,11 +834,11 @@ export function FileManager({
             )}
           </ContextMenuContent>
         </ContextMenu>
-        {node.type === "folder" && isExpanded && node.children?.map((child, idx) => 
+        {node.type === "folder" && isExpanded && node.children?.map((child, idx) =>
           renderNode(
-            child, 
-            depth + 1, 
-            idx === childCount - 1, 
+            child,
+            depth + 1,
+            idx === childCount - 1,
             [...parentIsLast, isLast]
           )
         )}
@@ -857,7 +857,7 @@ export function FileManager({
           <Folder className="h-4 w-4 text-blue-400" />
           <span className="font-semibold text-sm">{projectName}</span>
           <span className="text-xs text-muted-foreground">
-            {files.length} files, {folders.length} folders
+            {files.length} file{files.length !== 1 ? "s" : ""}, {folders.length} folder{folders.length !== 1 ? "s" : ""}
           </span>
         </div>
         <div className="flex items-center gap-2">
