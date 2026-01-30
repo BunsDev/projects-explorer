@@ -480,7 +480,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
               Upload More
             </Button>
             <Button onClick={() => router.push(`/dashboard/projects/${projectId}`)}>
-              Back to Project
+              Project
             </Button>
           </div>
         </CardContent>
@@ -539,7 +539,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
                   </p>
                 </div>
                 <Button type="button" variant="ghost" size="sm" onClick={clearAllFiles}>
-                  Clear All
+                  Clear
                 </Button>
               </div>
 

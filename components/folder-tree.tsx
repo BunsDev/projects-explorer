@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -116,7 +116,22 @@ export function FolderTree({
   const [error, setError] = useState<string | null>(null)
   const [folderName, setFolderName] = useState("")
   const [createInFolder, setCreateInFolder] = useState<string | null>(null)
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  // Expand root and all folders by default
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    const allIds = new Set(folders.map(f => f.id))
+    allIds.add("root")
+    return allIds
+  })
+
+  // Expand new folders when they are added
+  useEffect(() => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      next.add("root")
+      folders.forEach(f => next.add(f.id))
+      return next
+    })
+  }, [folders])
 
   // Toggle folder expansion
   const toggleFolderExpansion = (folderId: string, e?: React.MouseEvent) => {

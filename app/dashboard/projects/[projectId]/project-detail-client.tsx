@@ -29,7 +29,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2, ChevronDown, Archive, FolderOpen, Edit } from "lucide-react"
+import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2, ChevronDown, ChevronRight, Archive, FolderOpen, Edit, Eye } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { getFilesAction, updateProjectDeployedUrlAction, fetchGitHubTreeAction, saveGitHubSnapshotAction, syncGitHubRepoAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree"
 
@@ -145,6 +146,9 @@ export function ProjectDetailClient({
 
   // Share settings modal state
   const [isShareSettingsOpen, setIsShareSettingsOpen] = useState(false)
+
+  // Live preview collapsible state (hidden by default)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   // GitHub project state
   const isGitHubProject = project.sourceType === "github"
@@ -491,8 +495,8 @@ export function ProjectDetailClient({
 
         {/* GitHub Project Info Banner */}
         {isGitHubProject && (
-          <Card className="mb-4">
-            <CardHeader className="flex flex-row items-center justify-between border-b-0 -mt-3 -mb-3">
+          <Card className="mb-4 -mt-1 py-2">
+            <CardHeader className="flex flex-row items-center justify-between border-b-0">
               <CardTitle className="text-base font-medium flex items-center gap-2">
                 <Github className="size-4" />
                 GitHub Repository
@@ -531,7 +535,7 @@ export function ProjectDetailClient({
           </Card>
         )}
 
-        {/* Deployed Preview iframe or YouTube widget */}
+        {/* Deployed Preview iframe or YouTube widget - Collapsible */}
         {deployedUrl && (() => {
           const youtubeVideoId = getYouTubeVideoId(deployedUrl)
           const isYouTube = !!youtubeVideoId
@@ -539,38 +543,36 @@ export function ProjectDetailClient({
             ? `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=0`
             : deployedUrl
           return (
-            <Card className="mb-4 pb-0">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 -my-4">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
-                  {isYouTube ? (
-                    <Youtube className="size-4 text-red-500" />
-                  ) : (
-                    <Globe className="size-4 text-green-500" />
-                  )}
-                  Live Preview
-                  {isYouTube && (
-                    <span className="text-xs font-normal text-muted-foreground">YouTube</span>
-                  )}
-                </CardTitle>
+            <Collapsible open={isPreviewOpen} onOpenChange={setIsPreviewOpen} className="mb-3">
+              <div className="flex items-center justify-between rounded-lg border bg-card px-2 py-1.5 sm:px-3 sm:py-2">
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-2 sm:gap-3 text-sm hover:opacity-80 transition-opacity">
+                    {isPreviewOpen ? (
+                      <ChevronDown className="size-3.5 sm:size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-3.5 sm:size-4 text-muted-foreground" />
+                    )}
+                    {isYouTube ? (
+                      <Youtube className="size-3.5 sm:size-4 text-red-500" />
+                    ) : (
+                      <Globe className="size-3.5 sm:size-4 text-green-500" />
+                    )}
+                    <span className="font-medium text-sm">Live Preview</span>
+                  </button>
+                </CollapsibleTrigger>
                 <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" asChild>
                     <Link href={deployedUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="size-4" />
+                      <ExternalLink className="size-3.5 sm:size-4" />
                     </Link>
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIsEditingUrl(true)}
-                    className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
-                  >
-                    <Settings2 className="size-4" />
-                    <span className="sr-only">Edit URL</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => setIsEditingUrl(true)}>
+                    <Settings2 className="size-3.5 sm:size-4" />
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="relative w-full overflow-hidden rounded-b-lg border-t bg-muted/30 h-[280px] sm:h-[360px] md:h-[440px] lg:h-[524px]">
+              </div>
+              <CollapsibleContent>
+                <div className="relative w-full overflow-hidden rounded-b-lg border border-t-0 bg-muted/30 h-[280px] sm:h-[360px] md:h-[440px] lg:h-[996px]">
                   <iframe
                     src={embedSrc}
                     className="h-full w-full border-0"
@@ -580,8 +582,8 @@ export function ProjectDetailClient({
                     sandbox={isYouTube ? undefined : "allow-scripts allow-same-origin allow-forms allow-popups"}
                   />
                 </div>
-              </CardContent>
-            </Card>
+              </CollapsibleContent>
+            </Collapsible>
           )
         })()}
 

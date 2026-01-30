@@ -126,7 +126,7 @@ export function UploadForm() {
               Upload Another
             </Button>
             <Button className="flex-1" onClick={() => router.push("/dashboard")}>
-              Back to Dashboard
+              Dashboard
             </Button>
           </div>
         </CardContent>
