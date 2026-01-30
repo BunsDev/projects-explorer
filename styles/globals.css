@@ -282,4 +282,19 @@
       padding-bottom: 0;
     }
   }
+
+  /* Shiki syntax highlighting styles */
+  .shiki-code pre {
+    margin: 0;
+    background: transparent !important;
+  }
+
+  .shiki-code code {
+    display: block;
+    white-space: pre;
+  }
+
+  .shiki-code .shiki {
+    background: transparent !important;
+  }
 }

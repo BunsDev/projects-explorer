@@ -20,6 +20,7 @@ import {
   Check,
 } from "lucide-react"
 import { getFileContentAction } from "@/app/dashboard/actions"
+import { CodeBlock } from "@/components/code-block"
 
 type TreeFolder = {
   id: string
@@ -333,11 +334,7 @@ function FilePreview({ file, onClose }: { file: TreeFile; onClose: () => void })
             title={file.originalFilename}
           />
         ) : content !== null ? (
-          <ScrollArea className="h-full">
-            <pre className="bg-[#0d1117] p-4 text-sm text-[#c9d1d9] font-mono leading-relaxed">
-              <code>{content}</code>
-            </pre>
-          </ScrollArea>
+          <CodeBlock code={content} filename={file.originalFilename} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
             <FileText className="h-16 w-16" />

@@ -31,9 +31,48 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Folder, FolderPlus, MoreVertical, Pencil, Trash2, ChevronRight, ChevronDown, Move, Check } from "lucide-react"
+import { 
+  Folder, 
+  FolderPlus, 
+  MoreVertical, 
+  Pencil, 
+  Trash2, 
+  ChevronRight, 
+  ChevronDown, 
+  Move, 
+  Check,
+  File,
+  FileCode,
+  FileJson,
+  FileText,
+  FileImage,
+  FileArchive,
+} from "lucide-react"
 import { createFolderAction, renameFolderAction, deleteFolderAction, moveFolderAction } from "@/app/dashboard/actions"
 import { cn } from "@/lib/utils"
+
+// Color-coded file icon based on file extension (matching FileManager)
+function getFileIcon(filename: string, mimeType: string) {
+  const iconClass = "h-4 w-4"
+  const ext = filename.split(".").pop()?.toLowerCase()
+
+  if (mimeType.includes("zip") || mimeType.includes("tar") || mimeType.includes("gzip")) {
+    return <FileArchive className={cn(iconClass, "text-amber-500")} />
+  }
+  if (["js", "jsx", "ts", "tsx", "mjs", "cjs", "vue", "svelte", "html", "css", "scss"].includes(ext || "")) {
+    return <FileCode className={cn(iconClass, "text-violet-500")} />
+  }
+  if (["json", "xml", "yaml", "yml", "toml", "lock"].includes(ext || "")) {
+    return <FileJson className={cn(iconClass, "text-orange-500")} />
+  }
+  if (mimeType.startsWith("image/")) {
+    return <FileImage className={cn(iconClass, "text-emerald-500")} />
+  }
+  if (["md", "mdx", "txt", "pdf", "doc", "docx"].includes(ext || "")) {
+    return <FileText className={cn(iconClass, "text-blue-500")} />
+  }
+  return <File className={cn(iconClass, "text-muted-foreground")} />
+}
 
 type FolderType = {
   id: string
@@ -43,9 +82,17 @@ type FolderType = {
   createdAt: Date
 }
 
+type FileType = {
+  id: string
+  originalFilename: string
+  mimeType: string
+  folderId: string | null
+}
+
 interface FolderTreeProps {
   projectId: string
   folders: FolderType[]
+  files?: FileType[]
   currentFolderId?: string
   onFolderSelect: (folderId: string | null) => void
   onFoldersChange: (folders: FolderType[]) => void
@@ -54,6 +101,7 @@ interface FolderTreeProps {
 export function FolderTree({
   projectId,
   folders,
+  files = [],
   currentFolderId,
   onFolderSelect,
   onFoldersChange,
@@ -68,6 +116,25 @@ export function FolderTree({
   const [error, setError] = useState<string | null>(null)
   const [folderName, setFolderName] = useState("")
   const [createInFolder, setCreateInFolder] = useState<string | null>(null)
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+
+  // Toggle folder expansion
+  const toggleFolderExpansion = (folderId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(folderId)) {
+        next.delete(folderId)
+      } else {
+        next.add(folderId)
+      }
+      return next
+    })
+  }
+
+  // Get files in a specific folder
+  const getFilesInFolder = (folderId: string | null) => 
+    files.filter((f) => f.folderId === folderId)
 
   const resetForm = () => {
     setFolderName("")
@@ -216,7 +283,10 @@ export function FolderTree({
 
   const FolderItem = ({ folder, depth = 0 }: { folder: FolderType; depth?: number }) => {
     const subfolders = getSubfolders(folder.id)
+    const folderFiles = getFilesInFolder(folder.id)
     const isSelected = currentFolderId === folder.id
+    const isExpanded = expandedFolders.has(folder.id)
+    const hasContent = subfolders.length > 0 || folderFiles.length > 0
 
     return (
       <div>
@@ -228,12 +298,19 @@ export function FolderTree({
           style={{ paddingLeft: `${8 + depth * 16}px` }}
           onClick={() => onFolderSelect(folder.id)}
         >
-          {isSelected ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : subfolders.length > 0 ? (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          {hasContent ? (
+            <button
+              onClick={(e) => toggleFolderExpansion(folder.id, e)}
+              className="p-0.5 hover:bg-muted rounded"
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
           ) : (
-            <span className="w-4" />
+            <span className="w-5" />
           )}
           <Folder className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
           <span className="flex-1 truncate">{folder.name}</span>
@@ -273,9 +350,25 @@ export function FolderTree({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        {subfolders.map((sub) => (
-          <FolderItem key={sub.id} folder={sub} depth={depth + 1} />
-        ))}
+        {/* Show subfolders and files when expanded */}
+        {isExpanded && (
+          <>
+            {subfolders.map((sub) => (
+              <FolderItem key={sub.id} folder={sub} depth={depth + 1} />
+            ))}
+            {folderFiles.map((file) => (
+              <div
+                key={file.id}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground"
+                style={{ paddingLeft: `${8 + (depth + 1) * 16}px` }}
+              >
+                <span className="w-5" />
+                {getFileIcon(file.originalFilename, file.mimeType)}
+                <span className="flex-1 truncate">{file.originalFilename}</span>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     )
   }
@@ -289,25 +382,61 @@ export function FolderTree({
         </Button>
       </div>
 
-      <div
-        className={cn(
-          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-muted/50",
-          !currentFolderId && "bg-muted"
-        )}
-        onClick={() => onFolderSelect(null)}
-      >
-        {!currentFolderId ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <span className="w-4" />
-        )}
-        <Folder className={cn("h-4 w-4", !currentFolderId ? "text-primary" : "text-muted-foreground")} />
-        <span className="flex-1">All Files</span>
-      </div>
+      {/* All Files (root level) */}
+      {(() => {
+        const rootFiles = getFilesInFolder(null)
+        const hasRootContent = rootFolders.length > 0 || rootFiles.length > 0
+        const isRootExpanded = expandedFolders.has("root")
+        const isRootSelected = !currentFolderId
 
-      {rootFolders.map((folder) => (
-        <FolderItem key={folder.id} folder={folder} />
-      ))}
+        return (
+          <div>
+            <div
+              className={cn(
+                "group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-muted/50",
+                isRootSelected && "bg-muted"
+              )}
+              onClick={() => onFolderSelect(null)}
+            >
+              {hasRootContent ? (
+                <button
+                  onClick={(e) => toggleFolderExpansion("root", e)}
+                  className="p-0.5 hover:bg-muted rounded"
+                >
+                  {isRootExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+              ) : (
+                <span className="w-5" />
+              )}
+              <Folder className={cn("h-4 w-4", isRootSelected ? "text-primary" : "text-muted-foreground")} />
+              <span className="flex-1">All Files</span>
+            </div>
+            {/* Show root content when expanded */}
+            {isRootExpanded && (
+              <>
+                {rootFolders.map((folder) => (
+                  <FolderItem key={folder.id} folder={folder} depth={1} />
+                ))}
+                {rootFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground"
+                    style={{ paddingLeft: `${8 + 16}px` }}
+                  >
+                    <span className="w-5" />
+                    {getFileIcon(file.originalFilename, file.mimeType)}
+                    <span className="flex-1 truncate">{file.originalFilename}</span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Create Folder Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) resetForm(); }}>

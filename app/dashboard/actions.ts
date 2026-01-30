@@ -2106,3 +2106,29 @@ export async function getEffectiveShareSettingsAction(
     return { success: false, error: "Failed to compute effective settings" }
   }
 }
+
+// Highlight code with Shiki for syntax highlighting
+export async function highlightCodeAction(
+  code: string,
+  filename: string
+): Promise<{ success: boolean; html?: string; error?: string }> {
+  try {
+    const { getHighlighter, getLanguageFromFilename } = await import('@/lib/shiki')
+    const highlighter = await getHighlighter()
+    const lang = getLanguageFromFilename(filename)
+    
+    // Check if the language is loaded, fall back to 'text' if not
+    const loadedLangs = highlighter.getLoadedLanguages()
+    const effectiveLang = loadedLangs.includes(lang) ? lang : 'text'
+    
+    const html = highlighter.codeToHtml(code, { 
+      lang: effectiveLang, 
+      theme: 'plastic' 
+    })
+    
+    return { success: true, html }
+  } catch (error) {
+    console.error("Highlight code error:", error)
+    return { success: false, error: "Failed to highlight code" }
+  }
+}

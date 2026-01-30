@@ -434,6 +434,12 @@ export function ProjectDetailClient({
                   <FolderTree
                     projectId={project.id}
                     folders={folders}
+                    files={localTreeFiles.map((f) => ({
+                      id: f.id,
+                      originalFilename: f.originalFilename,
+                      mimeType: f.mimeType,
+                      folderId: f.folderId,
+                    }))}
                     currentFolderId={currentFolderId || undefined}
                     onFolderSelect={handleFolderSelect}
                     onFoldersChange={setFolders}
