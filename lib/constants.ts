@@ -114,3 +114,68 @@ export const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[
   mk: { mimeType: "text/x-makefile" },
   mak: { mimeType: "text/x-makefile" },
 }
+
+/* GITHUB SNAPSHOT EXTRACTION */
+
+// Patterns to exclude when extracting GitHub snapshots
+// Matches against the full path (e.g., "src/node_modules/foo" matches "node_modules")
+export const SNAPSHOT_EXCLUDED_PATTERNS = [
+  // Dependencies
+  "node_modules/",
+  "vendor/",
+  ".pnpm/",
+  
+  // Build outputs
+  "dist/",
+  "build/",
+  ".next/",
+  "out/",
+  ".nuxt/",
+  ".output/",
+  ".vercel/",
+  ".netlify/",
+  
+  // Cache directories
+  ".cache/",
+  ".turbo/",
+  ".parcel-cache/",
+  
+  // IDE/Editor directories
+  ".idea/",
+  ".vscode/",
+  
+  // OS files
+  ".DS_Store",
+  "Thumbs.db",
+  
+  // Lock files (optional - can be large)
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "bun.lock",
+  "bun.lockb",
+]
+
+// Allowed dotfiles that should NOT be excluded
+export const SNAPSHOT_ALLOWED_DOTFILES = [
+  ".env.example",
+  ".gitignore",
+  ".eslintrc",
+  ".eslintrc.js",
+  ".eslintrc.json",
+  ".prettierrc",
+  ".prettierrc.js",
+  ".prettierrc.json",
+  ".editorconfig",
+  ".npmrc",
+  ".nvmrc",
+]
+
+// Max file size for individual files during extraction (10MB)
+export const SNAPSHOT_MAX_FILE_SIZE = 10 * 1024 * 1024
+
+// Max total files to extract (safety limit)
+export const SNAPSHOT_MAX_TOTAL_FILES = 500
+
+// Concurrent upload limit for Vercel Blob
+export const SNAPSHOT_UPLOAD_CONCURRENCY = 5

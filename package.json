@@ -68,6 +68,7 @@
     "drizzle-orm": "^0.45.1",
     "embla-carousel-react": "8.5.1",
     "input-otp": "1.4.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.454.0",
     "nanoid": "^5.1.6",
     "next": "^16.1.5",
@@ -87,6 +88,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
+    "@types/jszip": "^3.4.1",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

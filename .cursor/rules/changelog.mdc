@@ -1,0 +1,50 @@
+---
+description: Changelog maintenance guidelines for tracking project changes
+globs: CHANGELOG.md
+alwaysApply: false
+---
+
+# Changelog Guidelines
+
+This project uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+
+## When to Update
+
+Update CHANGELOG.md when:
+- Adding new features or functionality
+- Making breaking changes
+- Fixing bugs
+- Deprecating features
+- Removing features
+- Making security improvements
+
+## Entry Format
+
+Add entries under the `[Unreleased]` section using these categories:
+
+- **Added** - new features
+- **Changed** - changes to existing functionality
+- **Deprecated** - soon-to-be removed features
+- **Removed** - removed features
+- **Fixed** - bug fixes
+- **Security** - vulnerability fixes
+
+## Writing Style
+
+```markdown
+### Added
+- Brief, clear description of change (context if needed)
+```
+
+- Start with a verb (Add, Fix, Update, Remove, Improve)
+- Keep entries concise but informative
+- Group related changes together
+- Reference issue/PR numbers when applicable: `(#123)`
+
+## Release Process
+
+When releasing a new version:
+1. Move `[Unreleased]` entries to new version section: `## [X.Y.Z] - YYYY-MM-DD`
+2. Create new empty `[Unreleased]` section at top
+3. Update comparison links at bottom of file
+4. Bump version in `package.json` to match

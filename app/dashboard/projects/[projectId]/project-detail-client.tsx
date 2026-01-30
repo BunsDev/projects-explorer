@@ -23,7 +23,13 @@ import { FolderTree } from "@/components/folder-tree"
 import { FileGrid } from "@/components/file-grid"
 import { FileManager } from "@/components/file-manager"
 import { ProjectShareSettingsModal } from "@/components/share-settings"
-import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2, ChevronDown, Archive, FolderOpen } from "lucide-react"
 import { getFilesAction, updateProjectDeployedUrlAction, fetchGitHubTreeAction, saveGitHubSnapshotAction, syncGitHubRepoAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree"
 
@@ -193,17 +199,22 @@ export function ProjectDetailClient({
     setIsSyncing(false)
   }
 
-  const handleSaveSnapshot = async () => {
+  const handleSaveSnapshot = async (extractFiles: boolean = false) => {
     setIsSavingSnapshot(true)
     setSnapshotMessage(null)
     try {
-      const result = await saveGitHubSnapshotAction(project.id)
+      const result = await saveGitHubSnapshotAction(project.id, extractFiles)
       if (result.success) {
-        setSnapshotMessage("Snapshot saved successfully!")
+        if (extractFiles && result.fileCount) {
+          setSnapshotMessage(`Saved ${result.fileCount} files${result.skippedCount ? ` (${result.skippedCount} skipped)` : ""}`)
+        } else {
+          setSnapshotMessage("Snapshot saved successfully!")
+        }
         router.refresh()
         // Reload tree files to show the new snapshot
         const treeResult = await fetchGitHubTreeAction(project.id)
         if (treeResult.success) {
+          setLocalTreeFolders(treeResult.folders || [])
           setLocalTreeFiles(treeResult.files || [])
         }
       } else {
@@ -429,20 +440,34 @@ export function ProjectDetailClient({
                   )}
                   <span className="hidden sm:inline">Sync</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSaveSnapshot}
-                  disabled={isSavingSnapshot}
-                  className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
-                >
-                  {isSavingSnapshot ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Download className="size-4" />
-                  )}
-                  <span className="hidden sm:inline">Save Snapshot</span>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isSavingSnapshot}
+                      className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
+                    >
+                      {isSavingSnapshot ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Download className="size-4" />
+                      )}
+                      <span className="hidden sm:inline">Save Snapshot</span>
+                      <ChevronDown className="size-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleSaveSnapshot(false)}>
+                      <Archive className="size-4 mr-2" />
+                      Save as Zip
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSaveSnapshot(true)}>
+                      <FolderOpen className="size-4 mr-2" />
+                      Save as Files
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
 

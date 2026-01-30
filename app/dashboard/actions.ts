@@ -9,7 +9,8 @@ import { put, del } from "@vercel/blob"
 import { nanoid } from "nanoid"
 import { revalidatePath } from "next/cache"
 import { eq, and, isNull, desc, count, sum, sql as drizzleSql } from "drizzle-orm"
-import { FILE_TYPES } from "@/lib/constants"
+import { FILE_TYPES, SNAPSHOT_UPLOAD_CONCURRENCY } from "@/lib/constants"
+import { extractZipContents, getFolderPathsFromFiles } from "@/lib/github"
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
@@ -2418,8 +2419,9 @@ export async function fetchGitHubFileContentAction(
  * Save a snapshot of a GitHub repository to Vercel Blob
  */
 export async function saveGitHubSnapshotAction(
-  projectId: string
-): Promise<{ success: boolean; error?: string; fileId?: string }> {
+  projectId: string,
+  extractFiles: boolean = false
+): Promise<{ success: boolean; error?: string; fileId?: string; fileCount?: number; skippedCount?: number }> {
   const auth = await requireAuthAction()
   if (!auth.authorized) {
     return { success: false, error: auth.error }
@@ -2454,8 +2456,14 @@ export async function saveGitHubSnapshotAction(
       return { success: false, error: zipResult.error }
     }
 
-    // Generate filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+
+    // If extractFiles is true, extract and save individual files
+    if (extractFiles) {
+      return await saveExtractedFiles(proj, zipResult.data, timestamp)
+    }
+
+    // Default behavior: save as zip
     const filename = `${proj.githubOwner}-${proj.githubRepo}-${timestamp}.zip`
 
     // Upload to Vercel Blob
@@ -2492,6 +2500,157 @@ export async function saveGitHubSnapshotAction(
   } catch (error) {
     console.error("Save GitHub snapshot error:", error)
     return { success: false, error: "Failed to save repository snapshot" }
+  }
+}
+
+/**
+ * Helper function to save extracted files from a GitHub zip
+ */
+async function saveExtractedFiles(
+  proj: {
+    id: string
+    githubOwner: string | null
+    githubRepo: string | null
+  },
+  zipData: ArrayBuffer,
+  timestamp: string
+): Promise<{ success: boolean; error?: string; fileCount?: number; skippedCount?: number }> {
+  // Extract zip contents
+  const extractResult = await extractZipContents(zipData)
+  if (!extractResult.success) {
+    return { success: false, error: extractResult.error }
+  }
+
+  const { files: extractedFiles, skippedCount } = extractResult
+
+  if (extractedFiles.length === 0) {
+    return { success: false, error: "No files to extract (all files were filtered out)" }
+  }
+
+  // Get unique folder paths and create them
+  const folderPaths = getFolderPathsFromFiles(extractedFiles.map((f) => f.path))
+  const folderIdMap = new Map<string, string>() // path -> folderId
+
+  // Create folders in order (parents first)
+  for (const folderPath of folderPaths) {
+    const parts = folderPath.split("/")
+    const folderName = parts[parts.length - 1]
+    const parentPath = parts.slice(0, -1).join("/")
+    const parentId = parentPath ? folderIdMap.get(parentPath) : null
+
+    // Check if folder already exists
+    const whereClause = parentId
+      ? and(eq(folders.projectId, proj.id), eq(folders.name, folderName), eq(folders.parentId, parentId))
+      : and(eq(folders.projectId, proj.id), eq(folders.name, folderName), isNull(folders.parentId))
+
+    const existingFolder = await db
+      .select({ id: folders.id })
+      .from(folders)
+      .where(whereClause)
+      .limit(1)
+
+    if (existingFolder.length > 0) {
+      folderIdMap.set(folderPath, existingFolder[0].id)
+    } else {
+      const newFolder = await db
+        .insert(folders)
+        .values({
+          projectId: proj.id,
+          parentId: parentId || null,
+          name: folderName,
+        })
+        .returning({ id: folders.id })
+
+      if (newFolder.length > 0) {
+        folderIdMap.set(folderPath, newFolder[0].id)
+      }
+    }
+  }
+
+  // Upload files with concurrency limit
+  const uploadResults: Array<{
+    path: string
+    blobUrl: string
+    size: number
+    mimeType: string
+    filename: string
+    folderId: string | null
+  }> = []
+
+  // Process files in batches for concurrent uploads
+  for (let i = 0; i < extractedFiles.length; i += SNAPSHOT_UPLOAD_CONCURRENCY) {
+    const batch = extractedFiles.slice(i, i + SNAPSHOT_UPLOAD_CONCURRENCY)
+
+    const batchResults = await Promise.all(
+      batch.map(async (file) => {
+        try {
+          // Upload to Vercel Blob
+          const blob = await put(file.filename, file.content, {
+            access: "public",
+            contentType: file.mimeType,
+            addRandomSuffix: true,
+          })
+
+          // Determine folder ID from path
+          const pathParts = file.path.split("/")
+          pathParts.pop() // Remove filename
+          const folderPath = pathParts.join("/")
+          const folderId = folderPath ? folderIdMap.get(folderPath) : null
+
+          return {
+            path: file.path,
+            blobUrl: blob.url,
+            size: file.size,
+            mimeType: file.mimeType,
+            filename: file.filename,
+            folderId: folderId || null,
+          }
+        } catch (error) {
+          console.error(`Failed to upload file: ${file.path}`, error)
+          return null
+        }
+      })
+    )
+
+    // Add successful uploads
+    for (const result of batchResults) {
+      if (result) {
+        uploadResults.push(result)
+      }
+    }
+  }
+
+  if (uploadResults.length === 0) {
+    return { success: false, error: "Failed to upload any files" }
+  }
+
+  // Batch insert file records
+  const fileRecords = uploadResults.map((result) => ({
+    publicId: nanoid(),
+    title: result.filename,
+    originalFilename: result.filename,
+    blobUrl: result.blobUrl,
+    fileSize: result.size,
+    mimeType: result.mimeType,
+    projectId: proj.id,
+    folderId: result.folderId,
+  }))
+
+  await db.insert(files).values(fileRecords)
+
+  // Update project's lastSyncedAt
+  await db
+    .update(projects)
+    .set({ lastSyncedAt: new Date(), updatedAt: new Date() })
+    .where(eq(projects.id, proj.id))
+
+  revalidatePath(`/dashboard/projects/${proj.id}`)
+  revalidatePath("/dashboard")
+
+  return {
+    success: true,
+    fileCount: uploadResults.length,
+    skippedCount,
   }
 }
 

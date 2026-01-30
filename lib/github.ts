@@ -2,6 +2,15 @@
  * GitHub API utilities for repository integration
  */
 
+import JSZip from "jszip"
+import {
+  FILE_TYPES,
+  SNAPSHOT_EXCLUDED_PATTERNS,
+  SNAPSHOT_ALLOWED_DOTFILES,
+  SNAPSHOT_MAX_FILE_SIZE,
+  SNAPSHOT_MAX_TOTAL_FILES,
+} from "./constants"
+
 const GITHUB_API_BASE = "https://api.github.com"
 
 /**
@@ -418,4 +427,185 @@ export async function getGitHubRateLimit(): Promise<
     console.error("GitHub rate limit check error:", error)
     return { success: false, error: "Failed to check rate limit" }
   }
+}
+
+// ============================================================
+// Zip Extraction Utilities
+// ============================================================
+
+/**
+ * Extracted file from a zip archive
+ */
+export type ExtractedFile = {
+  path: string
+  filename: string
+  content: ArrayBuffer
+  size: number
+  mimeType: string
+}
+
+/**
+ * Check if a file path should be included based on exclusion patterns
+ */
+export function shouldIncludeFile(path: string): boolean {
+  // Check against exclusion patterns
+  for (const pattern of SNAPSHOT_EXCLUDED_PATTERNS) {
+    if (path.includes(pattern)) {
+      return false
+    }
+  }
+
+  // Check for hidden files/directories (starting with .)
+  const parts = path.split("/")
+  for (const part of parts) {
+    if (part.startsWith(".")) {
+      // Check if it's an allowed dotfile
+      const isAllowed = SNAPSHOT_ALLOWED_DOTFILES.some(
+        (allowed) => part === allowed || path.endsWith(allowed)
+      )
+      if (!isAllowed) {
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
+/**
+ * Get MIME type from file path using extension
+ */
+export function getMimeTypeFromPath(path: string): string {
+  const filename = path.split("/").pop() || ""
+  const lastDot = filename.lastIndexOf(".")
+  
+  if (lastDot === -1) {
+    // No extension - check for known filenames
+    const lowerName = filename.toLowerCase()
+    if (lowerName === "makefile" || lowerName === "gnumakefile") {
+      return FILE_TYPES.makefile?.mimeType || "text/plain"
+    }
+    return "text/plain"
+  }
+
+  const ext = filename.slice(lastDot + 1).toLowerCase()
+  return FILE_TYPES[ext]?.mimeType || "application/octet-stream"
+}
+
+/**
+ * Extract zip contents and return filtered file list
+ * GitHub zips have a root folder like "owner-repo-sha/", which we strip
+ */
+export async function extractZipContents(
+  zipData: ArrayBuffer
+): Promise<
+  | { success: true; files: ExtractedFile[]; skippedCount: number; rootFolder: string }
+  | { success: false; error: string }
+> {
+  try {
+    const zip = await JSZip.loadAsync(zipData)
+    const files: ExtractedFile[] = []
+    let skippedCount = 0
+    let rootFolder = ""
+
+    // Find the root folder (GitHub adds owner-repo-sha/ prefix)
+    const entries = Object.keys(zip.files)
+    if (entries.length > 0) {
+      const firstEntry = entries[0]
+      const slashIndex = firstEntry.indexOf("/")
+      if (slashIndex !== -1) {
+        rootFolder = firstEntry.slice(0, slashIndex + 1)
+      }
+    }
+
+    // Process each file
+    for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+      // Skip directories
+      if (zipEntry.dir) {
+        continue
+      }
+
+      // Remove the root folder prefix
+      let cleanPath = relativePath
+      if (rootFolder && relativePath.startsWith(rootFolder)) {
+        cleanPath = relativePath.slice(rootFolder.length)
+      }
+
+      // Skip empty paths
+      if (!cleanPath) {
+        continue
+      }
+
+      // Check if file should be included
+      if (!shouldIncludeFile(cleanPath)) {
+        skippedCount++
+        continue
+      }
+
+      // Check file count limit
+      if (files.length >= SNAPSHOT_MAX_TOTAL_FILES) {
+        console.warn(`Reached max file limit (${SNAPSHOT_MAX_TOTAL_FILES}), skipping remaining files`)
+        break
+      }
+
+      // Get file content
+      const content = await zipEntry.async("arraybuffer")
+
+      // Check file size limit
+      if (content.byteLength > SNAPSHOT_MAX_FILE_SIZE) {
+        skippedCount++
+        continue
+      }
+
+      const filename = cleanPath.split("/").pop() || cleanPath
+      const mimeType = getMimeTypeFromPath(cleanPath)
+
+      files.push({
+        path: cleanPath,
+        filename,
+        content,
+        size: content.byteLength,
+        mimeType,
+      })
+    }
+
+    return {
+      success: true,
+      files,
+      skippedCount,
+      rootFolder: rootFolder.replace(/\/$/, ""), // Remove trailing slash
+    }
+  } catch (error) {
+    console.error("Zip extraction error:", error)
+    return { success: false, error: "Failed to extract zip contents" }
+  }
+}
+
+/**
+ * Get unique folder paths from a list of file paths
+ * Returns folders sorted by depth (parent folders first)
+ */
+export function getFolderPathsFromFiles(filePaths: string[]): string[] {
+  const folderSet = new Set<string>()
+
+  for (const filePath of filePaths) {
+    const parts = filePath.split("/")
+    // Remove the filename, keep folder parts
+    parts.pop()
+    
+    // Build up folder paths progressively
+    let currentPath = ""
+    for (const part of parts) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part
+      folderSet.add(currentPath)
+    }
+  }
+
+  // Sort by depth (fewer slashes = shallower = first)
+  return Array.from(folderSet).sort((a, b) => {
+    const depthA = a.split("/").length
+    const depthB = b.split("/").length
+    if (depthA !== depthB) return depthA - depthB
+    return a.localeCompare(b)
+  })
 }
