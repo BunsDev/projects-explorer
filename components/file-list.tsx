@@ -74,7 +74,7 @@ export function FileList({ files }: FileListProps) {
         <CardContent>
           {files.length === 0 ? (
             <div className="text-center py-12 text-zinc-500">
-              <FileArchive className="h-12 w-12 mx-auto mb-4 text-zinc-300" />
+              <FileArchive className="size-12 mx-auto mb-4 text-zinc-300" />
               <p>No files uploaded yet</p>
               <p className="text-sm">Upload your first file to get started</p>
             </div>

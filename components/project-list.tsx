@@ -721,7 +721,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold truncate">{project.name}</h3>
-                    {project.categoryName && (
+                    {/* {project.categoryName && (
                       <Badge
                         variant="outline"
                         className={cn(
@@ -732,7 +732,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                       >
                         {project.categoryName}
                       </Badge>
-                    )}
+                    )} */}
                   </div>
                   {project.description && (
                     <p className="text-sm text-muted-foreground truncate mt-0.5">
