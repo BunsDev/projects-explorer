@@ -26,6 +26,8 @@ import {
   FileJson,
   FileCode,
   File,
+  Folder,
+  FolderOpen,
   MoreVertical,
   Download,
   Trash2,
@@ -33,6 +35,14 @@ import {
   ExternalLink,
 } from "lucide-react"
 import { deleteFileAction } from "@/app/dashboard/actions"
+
+type FolderType = {
+  id: string
+  name: string
+  parentId: string | null
+  fileCount: number
+  createdAt: Date
+}
 
 type FileType = {
   id: string
@@ -103,10 +113,13 @@ function formatDate(date: Date): string {
 
 interface FileGridProps {
   files: FileType[]
+  folders?: FolderType[]
   onFilesChange: (files: FileType[]) => void
+  onFolderClick?: (folderId: string) => void
+  showFolders?: boolean
 }
 
-export function FileGrid({ files, onFilesChange }: FileGridProps) {
+export function FileGrid({ files, folders = [], onFilesChange, onFolderClick, showFolders = true }: FileGridProps) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<FileType | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -140,7 +153,10 @@ export function FileGrid({ files, onFilesChange }: FileGridProps) {
     setIsDeleteOpen(true)
   }
 
-  if (files.length === 0) {
+  const displayFolders = showFolders ? folders : []
+  const hasContent = files.length > 0 || displayFolders.length > 0
+
+  if (!hasContent) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <FileArchive className="h-12 w-12 text-muted-foreground/50" />
@@ -155,6 +171,37 @@ export function FileGrid({ files, onFilesChange }: FileGridProps) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {/* Folders first */}
+        {displayFolders.map((folder) => (
+          <Card 
+            key={`folder-${folder.id}`} 
+            className="group relative overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+            onClick={() => onFolderClick?.(folder.id)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="rounded-lg bg-muted p-3 text-amber-500">
+                  <Folder className="h-8 w-8" />
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-1">
+                <h3 className="font-medium leading-tight line-clamp-1" title={folder.name}>
+                  {folder.name}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {folder.fileCount} file{folder.fileCount !== 1 ? "s" : ""}
+                </p>
+              </div>
+
+              <div className="mt-3 text-xs text-muted-foreground">
+                {formatDate(folder.createdAt)}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Files */}
         {files.map((file) => (
           <Card key={file.id} className="group relative overflow-hidden">
             <CardContent className="p-4">

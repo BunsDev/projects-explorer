@@ -449,7 +449,16 @@ export function ProjectDetailClient({
                         : "All Files"}
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      {files.length} file{files.length !== 1 ? "s" : ""}
+                      {(() => {
+                        const displayFolders = currentFolderId === null
+                          ? folders.filter((f) => f.parentId === null)
+                          : folders.filter((f) => f.parentId === currentFolderId)
+                        const folderCount = displayFolders.length
+                        const parts = []
+                        if (folderCount > 0) parts.push(`${folderCount} folder${folderCount !== 1 ? "s" : ""}`)
+                        parts.push(`${files.length} file${files.length !== 1 ? "s" : ""}`)
+                        return parts.join(", ")
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -459,7 +468,17 @@ export function ProjectDetailClient({
                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                   </div>
                 ) : (
-                  <FileGrid files={files} onFilesChange={setFiles} />
+                  <FileGrid 
+                    files={files} 
+                    folders={
+                      currentFolderId === null
+                        ? folders.filter((f) => f.parentId === null)
+                        : folders.filter((f) => f.parentId === currentFolderId)
+                    }
+                    onFilesChange={setFiles} 
+                    onFolderClick={(folderId) => setCurrentFolderId(folderId)}
+                    showFolders={true}
+                  />
                 )}
               </div>
             </div>
