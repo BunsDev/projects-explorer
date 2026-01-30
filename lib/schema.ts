@@ -58,6 +58,13 @@ export const projects = pgTable(
     categoryId: uuid("category_id").references(() => categories.id, {
       onDelete: "set null",
     }),
+    // Source type: "uploaded" for file uploads, "github" for GitHub repos
+    sourceType: varchar("source_type", { length: 20 }).notNull().default("uploaded"),
+    // GitHub repository fields (only used when sourceType = "github")
+    githubOwner: varchar("github_owner", { length: 255 }),
+    githubRepo: varchar("github_repo", { length: 255 }),
+    githubBranch: varchar("github_branch", { length: 255 }).default("main"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     // Share settings overrides (null = use global default)
     shareEnabled: boolean("share_enabled"), // null = inherit from global
     sharePasswordRequired: boolean("share_password_required"), // null = inherit from global
@@ -69,6 +76,7 @@ export const projects = pgTable(
   },
   (table) => ({
     categoryIdIdx: index("idx_projects_category_id").on(table.categoryId),
+    sourceTypeIdx: index("idx_projects_source_type").on(table.sourceType),
   })
 )
 

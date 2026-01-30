@@ -23,9 +23,9 @@ import { FolderTree } from "@/components/folder-tree"
 import { FileGrid } from "@/components/file-grid"
 import { FileManager } from "@/components/file-manager"
 import { ProjectShareSettingsModal } from "@/components/share-settings"
-import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2 } from "lucide-react"
-import { getFilesAction, updateProjectDeployedUrlAction } from "@/app/dashboard/actions"
-import { GitHubFileTree } from "@/components/github-file-tree" // Import GitHubFileTree component
+import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2 } from "lucide-react"
+import { getFilesAction, updateProjectDeployedUrlAction, fetchGitHubTreeAction, saveGitHubSnapshotAction, syncGitHubRepoAction } from "@/app/dashboard/actions"
+import { GitHubFileTree } from "@/components/github-file-tree"
 
 type Project = {
   id: string
@@ -34,6 +34,11 @@ type Project = {
   description: string | null
   deployedUrl: string | null
   createdAt: Date
+  sourceType: string
+  githubOwner: string | null
+  githubRepo: string | null
+  githubBranch: string | null
+  lastSyncedAt: Date | null
 }
 
 type Folder = {
@@ -72,6 +77,7 @@ type TreeFile = {
   mimeType: string
   fileSize: number
   blobUrl: string
+  githubPath?: string
 }
 
 /** Extract YouTube video ID from youtube.com or youtu.be URLs, or null if not a YouTube URL. */
@@ -134,10 +140,82 @@ export function ProjectDetailClient({
   // Share settings modal state
   const [isShareSettingsOpen, setIsShareSettingsOpen] = useState(false)
 
+  // GitHub project state
+  const isGitHubProject = project.sourceType === "github"
+  const [isLoadingGitHubTree, setIsLoadingGitHubTree] = useState(false)
+  const [gitHubTreeError, setGitHubTreeError] = useState<string | null>(null)
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [snapshotMessage, setSnapshotMessage] = useState<string | null>(null)
+
   // Refresh data when file manager changes data
   const handleDataChange = useCallback(() => {
     router.refresh()
   }, [router])
+
+  // Load GitHub tree data for GitHub projects
+  useEffect(() => {
+    if (isGitHubProject && localTreeFolders.length === 0 && localTreeFiles.length === 0) {
+      loadGitHubTree()
+    }
+  }, [isGitHubProject])
+
+  const loadGitHubTree = async () => {
+    setIsLoadingGitHubTree(true)
+    setGitHubTreeError(null)
+    try {
+      const result = await fetchGitHubTreeAction(project.id)
+      if (result.success) {
+        setLocalTreeFolders(result.folders || [])
+        setLocalTreeFiles(result.files || [])
+      } else {
+        setGitHubTreeError(result.error || "Failed to load repository tree")
+      }
+    } catch (err) {
+      setGitHubTreeError("An unexpected error occurred")
+    }
+    setIsLoadingGitHubTree(false)
+  }
+
+  const handleSyncGitHub = async () => {
+    setIsSyncing(true)
+    try {
+      const result = await syncGitHubRepoAction(project.id)
+      if (result.success) {
+        await loadGitHubTree()
+        router.refresh()
+      } else {
+        setGitHubTreeError(result.error || "Failed to sync repository")
+      }
+    } catch (err) {
+      setGitHubTreeError("An unexpected error occurred")
+    }
+    setIsSyncing(false)
+  }
+
+  const handleSaveSnapshot = async () => {
+    setIsSavingSnapshot(true)
+    setSnapshotMessage(null)
+    try {
+      const result = await saveGitHubSnapshotAction(project.id)
+      if (result.success) {
+        setSnapshotMessage("Snapshot saved successfully!")
+        router.refresh()
+        // Reload tree files to show the new snapshot
+        const treeResult = await fetchGitHubTreeAction(project.id)
+        if (treeResult.success) {
+          setLocalTreeFiles(treeResult.files || [])
+        }
+      } else {
+        setSnapshotMessage(result.error || "Failed to save snapshot")
+      }
+    } catch (err) {
+      setSnapshotMessage("An unexpected error occurred")
+    }
+    setIsSavingSnapshot(false)
+    // Clear message after 5 seconds
+    setTimeout(() => setSnapshotMessage(null), 5000)
+  }
 
   // Save deployed URL
   const handleSaveDeployedUrl = async () => {
@@ -334,14 +412,92 @@ export function ProjectDetailClient({
               <span className="hidden sm:inline">Share Settings</span>
             </Button>
 
-            <Button variant="glass" asChild>
-              <Link href={`/dashboard/projects/${project.id}/upload${currentFolderId ? `?folder=${currentFolderId}` : ""}`}>
-                <Upload className="size-4" />
-                <span className="font-normal">Upload Files</span>
-              </Link>
-            </Button>
+            {/* GitHub project buttons */}
+            {isGitHubProject && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncGitHub}
+                  disabled={isSyncing}
+                  className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
+                >
+                  {isSyncing ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                  <span className="hidden sm:inline">Sync</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveSnapshot}
+                  disabled={isSavingSnapshot}
+                  className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
+                >
+                  {isSavingSnapshot ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                  <span className="hidden sm:inline">Save Snapshot</span>
+                </Button>
+              </>
+            )}
+
+            {!isGitHubProject && (
+              <Button variant="glass" asChild>
+                <Link href={`/dashboard/projects/${project.id}/upload${currentFolderId ? `?folder=${currentFolderId}` : ""}`}>
+                  <Upload className="size-4" />
+                  <span className="font-normal">Upload Files</span>
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* GitHub Project Info Banner */}
+        {isGitHubProject && (
+          <Card className="mb-4">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <Github className="size-4" />
+                GitHub Repository
+              </CardTitle>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {project.lastSyncedAt && (
+                  <span className="text-xs">
+                    Last synced: {new Date(project.lastSyncedAt).toLocaleDateString()}
+                  </span>
+                )}
+                <a
+                  href={`https://github.com/${project.githubOwner}/${project.githubRepo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-primary hover:underline"
+                >
+                  {project.githubOwner}/{project.githubRepo}
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
+            </CardHeader>
+            {(gitHubTreeError || snapshotMessage) && (
+              <CardContent className="pt-0 pb-3">
+                {gitHubTreeError && (
+                  <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+                    {gitHubTreeError}
+                  </div>
+                )}
+                {snapshotMessage && (
+                  <div className={`text-sm px-3 py-2 rounded-lg ${snapshotMessage.includes("success") ? "text-green-600 bg-green-500/10" : "text-destructive bg-destructive/10"}`}>
+                    {snapshotMessage}
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
+        )}
 
         {/* Deployed Preview iframe or YouTube widget */}
         {deployedUrl && (() => {
@@ -417,13 +573,20 @@ export function ProjectDetailClient({
 
             {/* File Manager with drag-and-drop */}
             <TabsContent value="tree" className="mt-4">
-              <FileManager
-                projectId={project.id}
-                projectName={project.name}
-                folders={localTreeFolders}
-                files={localTreeFiles}
-                onDataChange={handleDataChange}
-              />
+              {isLoadingGitHubTree ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                </div>
+              ) : (
+                <FileManager
+                  projectId={project.id}
+                  projectName={project.name}
+                  folders={localTreeFolders}
+                  files={localTreeFiles}
+                  isGitHubProject={isGitHubProject}
+                  onDataChange={handleDataChange}
+                />
+              )}
             </TabsContent>
 
             {/* Traditional grid view */}

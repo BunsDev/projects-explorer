@@ -2132,3 +2132,422 @@ export async function highlightCodeAction(
     return { success: false, error: "Failed to highlight code" }
   }
 }
+
+// ============ GitHub Integration Actions ============
+
+import {
+  parseGitHubUrl,
+  fetchRepoInfo,
+  fetchRepoTree,
+  fetchFileContent as fetchGitHubContent,
+  downloadRepoZip,
+  isGitHubIntegrationAvailable,
+  type GitHubTreeItem,
+} from "@/lib/github"
+
+/**
+ * Check if GitHub integration is available
+ */
+export async function checkGitHubIntegrationAction(): Promise<{
+  available: boolean
+}> {
+  return { available: isGitHubIntegrationAvailable() }
+}
+
+/**
+ * Connect a GitHub repository as a project
+ */
+export async function connectGitHubRepoAction(
+  repoUrl: string,
+  categoryId?: string
+): Promise<{ success: boolean; error?: string; projectId?: string; slug?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  // Validate GitHub integration is available
+  if (!isGitHubIntegrationAvailable()) {
+    return { success: false, error: "GitHub integration is not configured. Please set GITHUB_TOKEN." }
+  }
+
+  // Parse the repository URL
+  const parsed = parseGitHubUrl(repoUrl)
+  if (!parsed) {
+    return { success: false, error: "Invalid GitHub repository URL. Use format: github.com/owner/repo" }
+  }
+
+  const { owner, repo } = parsed
+
+  try {
+    // Fetch repository info to validate access and get metadata
+    const repoInfo = await fetchRepoInfo(owner, repo)
+    if (!repoInfo.success) {
+      return { success: false, error: repoInfo.error }
+    }
+
+    // Check if project already exists with this GitHub repo
+    const existing = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.githubOwner, owner),
+          eq(projects.githubRepo, repo)
+        )
+      )
+      .limit(1)
+
+    if (existing.length > 0) {
+      return { success: false, error: "This repository is already connected as a project" }
+    }
+
+    // Generate slug
+    const slug = generateSlug(repoInfo.data.name)
+
+    // If no category provided, try to get the default category
+    let finalCategoryId = categoryId || null
+    if (!finalCategoryId) {
+      const defaultCategory = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.isDefault, true))
+        .limit(1)
+
+      if (defaultCategory.length > 0) {
+        finalCategoryId = defaultCategory[0].id
+      }
+    }
+
+    // Create the project
+    const result = await db
+      .insert(projects)
+      .values({
+        name: repoInfo.data.name,
+        slug,
+        description: repoInfo.data.description,
+        deployedUrl: repoInfo.data.htmlUrl,
+        categoryId: finalCategoryId,
+        sourceType: "github",
+        githubOwner: owner,
+        githubRepo: repo,
+        githubBranch: repoInfo.data.defaultBranch,
+        lastSyncedAt: new Date(),
+      })
+      .returning({ id: projects.id })
+
+    revalidatePath("/dashboard")
+    return { success: true, projectId: result[0].id, slug }
+  } catch (error) {
+    console.error("Connect GitHub repo error:", error)
+    return { success: false, error: "Failed to connect GitHub repository" }
+  }
+}
+
+/**
+ * Transformed tree structure for the UI
+ */
+export type TransformedTreeFolder = {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+export type TransformedTreeFile = {
+  id: string
+  publicId: string
+  title: string
+  originalFilename: string
+  folderId: string | null
+  mimeType: string
+  fileSize: number
+  blobUrl: string
+  githubPath?: string
+}
+
+/**
+ * Fetch GitHub repository tree for a project
+ */
+export async function fetchGitHubTreeAction(
+  projectId: string
+): Promise<{
+  success: boolean
+  error?: string
+  folders?: TransformedTreeFolder[]
+  files?: TransformedTreeFile[]
+  truncated?: boolean
+}> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get the project
+    const project = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
+    if (project.length === 0) {
+      return { success: false, error: "Project not found" }
+    }
+
+    const proj = project[0]
+
+    if (proj.sourceType !== "github" || !proj.githubOwner || !proj.githubRepo) {
+      return { success: false, error: "Project is not a GitHub repository" }
+    }
+
+    // Fetch the tree from GitHub
+    const treeResult = await fetchRepoTree(
+      proj.githubOwner,
+      proj.githubRepo,
+      proj.githubBranch || undefined
+    )
+
+    if (!treeResult.success) {
+      return { success: false, error: treeResult.error }
+    }
+
+    // Transform GitHub tree to our folder/file structure
+    const folders: TransformedTreeFolder[] = []
+    const files: TransformedTreeFile[] = []
+    const folderMap = new Map<string, string>() // path -> id
+
+    // Process tree items
+    for (const item of treeResult.tree) {
+      const pathParts = item.path.split("/")
+      const name = pathParts[pathParts.length - 1]
+      const parentPath = pathParts.slice(0, -1).join("/")
+      const parentId = parentPath ? folderMap.get(parentPath) || null : null
+
+      if (item.type === "tree") {
+        // It's a folder
+        const folderId = `gh-folder-${item.sha.substring(0, 8)}-${folders.length}`
+        folderMap.set(item.path, folderId)
+        folders.push({
+          id: folderId,
+          name,
+          parentId,
+        })
+      } else if (item.type === "blob") {
+        // It's a file
+        const fileId = `gh-file-${item.sha.substring(0, 8)}-${files.length}`
+        const ext = name.split(".").pop()?.toLowerCase() || ""
+        const typeInfo = FILE_TYPES[ext]
+        const mimeType = typeInfo?.mimeType || "application/octet-stream"
+
+        files.push({
+          id: fileId,
+          publicId: item.sha.substring(0, 12),
+          title: name,
+          originalFilename: name,
+          folderId: parentId,
+          mimeType,
+          fileSize: item.size || 0,
+          blobUrl: "", // Not applicable for GitHub files
+          githubPath: item.path,
+        })
+      }
+    }
+
+    return {
+      success: true,
+      folders,
+      files,
+      truncated: treeResult.truncated,
+    }
+  } catch (error) {
+    console.error("Fetch GitHub tree error:", error)
+    return { success: false, error: "Failed to fetch repository tree" }
+  }
+}
+
+/**
+ * Fetch file content from a GitHub repository
+ */
+export async function fetchGitHubFileContentAction(
+  projectId: string,
+  path: string
+): Promise<{ success: boolean; content?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get the project
+    const project = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
+    if (project.length === 0) {
+      return { success: false, error: "Project not found" }
+    }
+
+    const proj = project[0]
+
+    if (proj.sourceType !== "github" || !proj.githubOwner || !proj.githubRepo) {
+      return { success: false, error: "Project is not a GitHub repository" }
+    }
+
+    // Fetch the file content
+    const result = await fetchGitHubContent(
+      proj.githubOwner,
+      proj.githubRepo,
+      path,
+      proj.githubBranch || undefined
+    )
+
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
+
+    return { success: true, content: result.content }
+  } catch (error) {
+    console.error("Fetch GitHub file content error:", error)
+    return { success: false, error: "Failed to fetch file content" }
+  }
+}
+
+/**
+ * Save a snapshot of a GitHub repository to Vercel Blob
+ */
+export async function saveGitHubSnapshotAction(
+  projectId: string
+): Promise<{ success: boolean; error?: string; fileId?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get the project
+    const project = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
+    if (project.length === 0) {
+      return { success: false, error: "Project not found" }
+    }
+
+    const proj = project[0]
+
+    if (proj.sourceType !== "github" || !proj.githubOwner || !proj.githubRepo) {
+      return { success: false, error: "Project is not a GitHub repository" }
+    }
+
+    // Download the zip from GitHub
+    const zipResult = await downloadRepoZip(
+      proj.githubOwner,
+      proj.githubRepo,
+      proj.githubBranch || undefined
+    )
+
+    if (!zipResult.success) {
+      return { success: false, error: zipResult.error }
+    }
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+    const filename = `${proj.githubOwner}-${proj.githubRepo}-${timestamp}.zip`
+
+    // Upload to Vercel Blob
+    const blob = await put(filename, zipResult.data, {
+      access: "public",
+      contentType: "application/zip",
+    })
+
+    // Create file record in database
+    const publicId = nanoid()
+    const fileRecord = await db
+      .insert(files)
+      .values({
+        publicId,
+        title: `Snapshot: ${proj.githubRepo} (${timestamp})`,
+        originalFilename: filename,
+        blobUrl: blob.url,
+        fileSize: zipResult.size,
+        mimeType: "application/zip",
+        projectId: proj.id,
+      })
+      .returning({ id: files.id })
+
+    // Update project's lastSyncedAt
+    await db
+      .update(projects)
+      .set({ lastSyncedAt: new Date(), updatedAt: new Date() })
+      .where(eq(projects.id, projectId))
+
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    revalidatePath("/dashboard")
+
+    return { success: true, fileId: fileRecord[0].id }
+  } catch (error) {
+    console.error("Save GitHub snapshot error:", error)
+    return { success: false, error: "Failed to save repository snapshot" }
+  }
+}
+
+/**
+ * Sync GitHub repository metadata (re-fetch tree and update lastSyncedAt)
+ */
+export async function syncGitHubRepoAction(
+  projectId: string
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  try {
+    // Get the project
+    const project = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1)
+
+    if (project.length === 0) {
+      return { success: false, error: "Project not found" }
+    }
+
+    const proj = project[0]
+
+    if (proj.sourceType !== "github" || !proj.githubOwner || !proj.githubRepo) {
+      return { success: false, error: "Project is not a GitHub repository" }
+    }
+
+    // Fetch fresh repo info to update metadata
+    const repoInfo = await fetchRepoInfo(proj.githubOwner, proj.githubRepo)
+    if (!repoInfo.success) {
+      return { success: false, error: repoInfo.error }
+    }
+
+    // Update project with latest info
+    await db
+      .update(projects)
+      .set({
+        name: repoInfo.data.name,
+        description: repoInfo.data.description,
+        githubBranch: repoInfo.data.defaultBranch,
+        lastSyncedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, projectId))
+
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    revalidatePath("/dashboard")
+
+    return { success: true }
+  } catch (error) {
+    console.error("Sync GitHub repo error:", error)
+    return { success: false, error: "Failed to sync repository" }
+  }
+}

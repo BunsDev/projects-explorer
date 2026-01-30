@@ -78,6 +78,7 @@ import {
   moveFilesAction,
   moveFolderAction,
   getFileContentAction,
+  fetchGitHubFileContentAction,
   regenerateShareLinkAction,
   regenerateShareLinkHardenedAction,
 } from "@/app/dashboard/actions"
@@ -99,6 +100,7 @@ type TreeFile = {
   mimeType: string
   fileSize: number
   blobUrl: string
+  githubPath?: string
 }
 
 interface FileManagerProps {
@@ -106,6 +108,7 @@ interface FileManagerProps {
   projectName: string
   folders: TreeFolder[]
   files: TreeFile[]
+  isGitHubProject?: boolean
   onDataChange?: () => void
 }
 
@@ -398,9 +401,13 @@ function DraggableItem({
 function FilePreview({
   file,
   onClose,
+  projectId,
+  isGitHubProject,
 }: {
   file: TreeFile
   onClose: () => void
+  projectId?: string
+  isGitHubProject?: boolean
 }) {
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -409,14 +416,22 @@ function FilePreview({
   useEffect(() => {
     const loadContent = async () => {
       setIsLoading(true)
-      const result = await getFileContentAction(file.id)
-      if (result.success && result.content !== undefined) {
-        setContent(result.content)
+      // Use GitHub API for GitHub files, otherwise use blob storage
+      if (isGitHubProject && file.githubPath && projectId) {
+        const result = await fetchGitHubFileContentAction(projectId, file.githubPath)
+        if (result.success && result.content !== undefined) {
+          setContent(result.content)
+        }
+      } else {
+        const result = await getFileContentAction(file.id)
+        if (result.success && result.content !== undefined) {
+          setContent(result.content)
+        }
       }
       setIsLoading(false)
     }
     loadContent()
-  }, [file.id])
+  }, [file.id, file.githubPath, projectId, isGitHubProject])
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(`${window.location.origin}/share/${file.publicId}`)
@@ -482,6 +497,7 @@ export function FileManager({
   projectName,
   folders,
   files,
+  isGitHubProject,
   onDataChange,
 }: FileManagerProps) {
   // State
@@ -1282,7 +1298,12 @@ export function FileManager({
 
         {/* Preview panel */}
         {previewFile && (
-          <FilePreview file={previewFile} onClose={() => setPreviewFile(null)} />
+          <FilePreview 
+            file={previewFile} 
+            onClose={() => setPreviewFile(null)}
+            projectId={projectId}
+            isGitHubProject={isGitHubProject}
+          />
         )}
       </div>
 

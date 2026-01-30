@@ -41,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe, ExternalLink, HardDrive, ChevronDown, ChevronRight, Lock, Clock, Download, Shield } from "lucide-react"
+import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe, ExternalLink, HardDrive, ChevronDown, ChevronRight, Lock, Clock, Download, Shield, Github } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -56,6 +56,7 @@ import {
 } from "@/app/dashboard/actions"
 import { CATEGORY_COLORS } from "@/lib/constants"
 import { CategoryManager } from "@/components/category-manager"
+import { GitHubRepoConnect } from "@/components/github-repo-connect"
 import { cn } from "@/lib/utils"
 
 function formatBytes(bytes: number): string {
@@ -266,6 +267,12 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
         </div>
         <div className="flex items-center gap-2">
           <CategoryManager categories={categories} onCategoriesChange={refreshCategories} />
+          <GitHubRepoConnect>
+            <Button variant="outline" size="icon" className="gap-2 border-2 border-muted-foreground/30 hover:bg-accent/50 hover:text-accent-foreground">
+              <Github className="size-4" />
+              <span className="sr-only">Connect GitHub Repo</span>
+            </Button>
+          </GitHubRepoConnect>
           {mounted ? (
             <Dialog
               open={isCreateOpen}

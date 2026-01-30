@@ -19,7 +19,7 @@ import {
   Copy,
   Check,
 } from "lucide-react"
-import { getFileContentAction } from "@/app/dashboard/actions"
+import { getFileContentAction, fetchGitHubFileContentAction } from "@/app/dashboard/actions"
 import { CodeBlock } from "@/components/code-block"
 
 type TreeFolder = {
@@ -37,10 +37,13 @@ type TreeFile = {
   mimeType: string
   fileSize: number
   blobUrl: string
+  githubPath?: string
 }
 
 interface GitHubFileTreeProps {
   projectName: string
+  projectId?: string
+  isGitHubProject?: boolean
   folders: TreeFolder[]
   files: TreeFile[]
 }
@@ -249,7 +252,17 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
-function FilePreview({ file, onClose }: { file: TreeFile; onClose: () => void }) {
+function FilePreview({ 
+  file, 
+  onClose,
+  projectId,
+  isGitHubProject,
+}: { 
+  file: TreeFile
+  onClose: () => void
+  projectId?: string
+  isGitHubProject?: boolean
+}) {
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -261,19 +274,31 @@ function FilePreview({ file, onClose }: { file: TreeFile; onClose: () => void })
       setError(null)
       setContent(null)
 
-      const result = await getFileContentAction(file.id)
-      if (result.success) {
-        if (result.content !== undefined) {
-          setContent(result.content)
+      // Use GitHub API for GitHub files, otherwise use blob storage
+      if (isGitHubProject && file.githubPath && projectId) {
+        const result = await fetchGitHubFileContentAction(projectId, file.githubPath)
+        if (result.success) {
+          if (result.content !== undefined) {
+            setContent(result.content)
+          }
+        } else {
+          setError(result.error || "Failed to load file from GitHub")
         }
       } else {
-        setError(result.error || "Failed to load file")
+        const result = await getFileContentAction(file.id)
+        if (result.success) {
+          if (result.content !== undefined) {
+            setContent(result.content)
+          }
+        } else {
+          setError(result.error || "Failed to load file")
+        }
       }
       setIsLoading(false)
     }
 
     loadContent()
-  }, [file.id])
+  }, [file.id, file.githubPath, projectId, isGitHubProject])
 
   const copyLink = async () => {
     const url = `${window.location.origin}/share/${file.publicId}`
@@ -352,7 +377,7 @@ function FilePreview({ file, onClose }: { file: TreeFile; onClose: () => void })
   )
 }
 
-export function GitHubFileTree({ projectName, folders, files }: GitHubFileTreeProps) {
+export function GitHubFileTree({ projectName, projectId, isGitHubProject, folders, files }: GitHubFileTreeProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<TreeFile | null>(null)
 
@@ -440,7 +465,12 @@ export function GitHubFileTree({ projectName, folders, files }: GitHubFileTreePr
 
         {/* Preview panel */}
         {selectedFile && (
-          <FilePreview file={selectedFile} onClose={() => setSelectedFile(null)} />
+          <FilePreview 
+            file={selectedFile} 
+            onClose={() => setSelectedFile(null)}
+            projectId={projectId}
+            isGitHubProject={isGitHubProject}
+          />
         )}
       </div>
     </div>

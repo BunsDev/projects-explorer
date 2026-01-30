@@ -15,7 +15,8 @@ export default async function ProjectPage({
 
   // Fetch project
   const projects = await sql`
-    SELECT id, name, slug, description, deployed_url, created_at
+    SELECT id, name, slug, description, deployed_url, created_at,
+           source_type, github_owner, github_repo, github_branch, last_synced_at
     FROM projects WHERE id = ${projectId}
   `
 
@@ -62,6 +63,11 @@ export default async function ProjectPage({
         description: project.description as string | null,
         deployedUrl: project.deployed_url as string | null,
         createdAt: project.created_at as Date,
+        sourceType: (project.source_type as string) || "uploaded",
+        githubOwner: project.github_owner as string | null,
+        githubRepo: project.github_repo as string | null,
+        githubBranch: project.github_branch as string | null,
+        lastSyncedAt: project.last_synced_at as Date | null,
       }}
       initialFolders={folders.map((f) => ({
         id: f.id as string,
