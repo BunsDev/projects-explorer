@@ -334,13 +334,12 @@ export function ProjectDetailClient({
               <span className="hidden sm:inline">Share Settings</span>
             </Button>
 
-            {currentFolderId && (
-              <Button variant="glass" asChild>
-                <Link href={`/dashboard/projects/${project.id}/upload${currentFolderId ? `?folder=${currentFolderId}` : ""}`}>
-                  <Upload className="size-4" />
-                  <span className="sr-only">Upload Files</span>
-                </Link></Button>
-            )}
+            <Button variant="glass" asChild>
+              <Link href={`/dashboard/projects/${project.id}/upload${currentFolderId ? `?folder=${currentFolderId}` : ""}`}>
+                <Upload className="size-4" />
+                <span className="font-normal">Upload Files</span>
+              </Link>
+            </Button>
           </div>
         </div>
 
@@ -468,14 +467,14 @@ export function ProjectDetailClient({
                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                   </div>
                 ) : (
-                  <FileGrid 
-                    files={files} 
+                  <FileGrid
+                    files={files}
                     folders={
                       currentFolderId === null
                         ? folders.filter((f) => f.parentId === null)
                         : folders.filter((f) => f.parentId === currentFolderId)
                     }
-                    onFilesChange={setFiles} 
+                    onFilesChange={setFiles}
                     onFolderClick={(folderId) => setCurrentFolderId(folderId)}
                     showFolders={true}
                   />

@@ -12,20 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, FileArchive, X, AlertCircle, Check, Copy } from "lucide-react"
 import { uploadFileAction } from "@/app/dashboard/actions"
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-
-export const UPLOAD_SUPPORTED_EXTENSIONS = [
-  ".zip", ".tar", ".gz", ".7z",
-  ".pdf", ".doc", ".docx", ".txt", ".md", ".mdx", ".license",
-  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".heif", ".heic", ".webp", ".ico",
-  ".json", ".xml", ".csv", ".yaml", ".yml", ".toml", ".sql",
-  ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
-  ".css", ".scss", ".sass", ".less",
-  ".html", ".htm", ".vue", ".svelte",
-  ".lock", ".env", ".gitignore", ".npmrc", ".nvmrc",
-  ".sh", ".bash", ".zsh",
-]
+import { MAX_FILE_SIZE, UPLOAD_SUPPORTED_EXTENSIONS } from "@/lib/constants"
 
 export function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
@@ -47,7 +34,7 @@ export function UploadForm() {
     }
 
     if (selectedFile.size > MAX_FILE_SIZE) {
-      setError("File size exceeds 100MB limit")
+      setError(`File size exceeds ${MAX_FILE_SIZE}MB limit`)
       setFile(null)
       return
     }
@@ -152,7 +139,7 @@ export function UploadForm() {
       <CardHeader>
         <CardTitle>Upload File</CardTitle>
         <CardDescription>
-          Upload a file (max 100MB) to generate a shareable download link.
+          Upload a file (max {MAX_FILE_SIZE}MB) to generate a shareable download link.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -192,7 +179,7 @@ export function UploadForm() {
               <label className="cursor-pointer block">
                 <Upload className="h-8 w-8 mx-auto mb-3 text-zinc-400" />
                 <p className="font-medium">Click to select a file</p>
-                <p className="text-sm text-zinc-500 mt-1">Maximum file size: 100MB</p>
+                <p className="text-sm text-zinc-500 mt-1">Maximum file size: {MAX_FILE_SIZE}MB</p>
                 <input
                   ref={fileInputRef}
                   type="file"

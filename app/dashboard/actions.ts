@@ -9,6 +9,7 @@ import { put, del } from "@vercel/blob"
 import { nanoid } from "nanoid"
 import { revalidatePath } from "next/cache"
 import { eq, and, isNull, desc, count, sum, sql as drizzleSql } from "drizzle-orm"
+import { FILE_TYPES } from "@/lib/constants"
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
@@ -58,83 +59,6 @@ async function logAuditAction(
   }
 }
 
-// File type definitions with magic bytes for binary validation
-// Text-based files don't need magic bytes - we trust the extension
-const FILE_TYPES: Record<string, { mimeType: string; magicBytes?: number[][] }> = {
-  // Archives (with magic bytes validation)
-  zip: { mimeType: "application/zip", magicBytes: [[0x50, 0x4b, 0x03, 0x04], [0x50, 0x4b, 0x05, 0x06], [0x50, 0x4b, 0x07, 0x08]] },
-  tar: { mimeType: "application/x-tar" },
-  gz: { mimeType: "application/gzip", magicBytes: [[0x1f, 0x8b]] },
-  "7z": { mimeType: "application/x-7z-compressed", magicBytes: [[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]] },
-
-  // Documents
-  pdf: { mimeType: "application/pdf", magicBytes: [[0x25, 0x50, 0x44, 0x46]] },
-  doc: { mimeType: "application/msword" },
-  docx: { mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
-  txt: { mimeType: "text/plain" },
-  md: { mimeType: "text/markdown" },
-  mdx: { mimeType: "text/mdx" },
-  license: { mimeType: "text/plain" },
-
-  // Images (with magic bytes validation for binary formats)
-  png: { mimeType: "image/png", magicBytes: [[0x89, 0x50, 0x4e, 0x47]] },
-  jpg: { mimeType: "image/jpeg", magicBytes: [[0xff, 0xd8, 0xff]] },
-  jpeg: { mimeType: "image/jpeg", magicBytes: [[0xff, 0xd8, 0xff]] },
-  gif: { mimeType: "image/gif", magicBytes: [[0x47, 0x49, 0x46, 0x38]] },
-  svg: { mimeType: "image/svg+xml" },
-  heif: { mimeType: "image/heif" },
-  heic: { mimeType: "image/heic" },
-  webp: { mimeType: "image/webp", magicBytes: [[0x52, 0x49, 0x46, 0x46]] },
-  ico: { mimeType: "image/x-icon" },
-
-  // Data files
-  json: { mimeType: "application/json" },
-  xml: { mimeType: "text/xml" },
-  csv: { mimeType: "text/csv" },
-  yaml: { mimeType: "text/yaml" },
-  yml: { mimeType: "text/yaml" },
-  toml: { mimeType: "text/toml" },
-  sql: { mimeType: "application/sql" },
-
-  // JavaScript/TypeScript
-  js: { mimeType: "text/javascript" },
-  jsx: { mimeType: "text/javascript" },
-  ts: { mimeType: "text/typescript" },
-  tsx: { mimeType: "text/typescript" },
-  mjs: { mimeType: "text/javascript" },
-  cjs: { mimeType: "text/javascript" },
-
-  // Styles
-  css: { mimeType: "text/css" },
-  scss: { mimeType: "text/scss" },
-  sass: { mimeType: "text/sass" },
-  less: { mimeType: "text/less" },
-
-  // Other code
-  html: { mimeType: "text/html" },
-  htm: { mimeType: "text/html" },
-  vue: { mimeType: "text/vue" },
-  svelte: { mimeType: "text/svelte" },
-
-  // Config files
-  lock: { mimeType: "text/plain" },
-  env: { mimeType: "text/plain" },
-  gitignore: { mimeType: "text/plain" },
-  npmrc: { mimeType: "text/plain" },
-  nvmrc: { mimeType: "text/plain" },
-
-  // Shell scripts
-  sh: { mimeType: "text/x-shellscript" },
-  bash: { mimeType: "text/x-shellscript" },
-  zsh: { mimeType: "text/x-shellscript" },
-
-  // Makefiles (filename with no extension: Makefile, makefile, GNUmakefile)
-  makefile: { mimeType: "text/x-makefile" },
-  gnumakefile: { mimeType: "text/x-makefile" },
-  // Makefile fragments with extension
-  mk: { mimeType: "text/x-makefile" },
-  mak: { mimeType: "text/x-makefile" },
-}
 
 function detectFileType(bytes: Uint8Array, filename: string): { valid: boolean; mimeType: string } {
   const ext = filename.split(".").pop()?.toLowerCase() || ""

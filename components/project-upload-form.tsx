@@ -20,41 +20,7 @@ import { Switch } from "@/components/ui/switch"
 import { Upload, X, FileArchive, FileText, FileImage, File, CheckCircle2, Copy, Folder, FileCode, FileJson, Settings } from "lucide-react"
 import { uploadFileAction } from "@/app/dashboard/actions"
 import { cn } from "@/lib/utils"
-
-// Filenames without extension that are allowed (e.g. Makefile)
-const ALLOWED_FILENAMES_NO_EXT = ["Makefile", "makefile", "GNUmakefile"]
-
-// Comprehensive list of supported file extensions
-export const PROJECT_UPLOAD_SUPPORTED_EXTENSIONS = [
-  // Archives
-  ".zip", ".tar", ".gz", ".7z",
-  // Documents
-  ".pdf", ".doc", ".docx", ".txt", ".md", ".mdx", ".license",
-  // Images
-  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".heif", ".heic", ".webp", ".ico",
-  // Data files
-  ".json", ".xml", ".csv", ".yaml", ".yml", ".toml", ".sql",
-  // Code - JavaScript/TypeScript
-  ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
-  // Code - Styles
-  ".css", ".scss", ".sass", ".less",
-  // Code - Other
-  ".html", ".htm", ".vue", ".svelte",
-  // Build / Make
-  ".mk", ".mak",
-  // Config files
-  ".lock", ".env", ".gitignore", ".npmrc", ".nvmrc",
-  // Shell/scripts
-  ".sh", ".bash", ".zsh",
-]
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-
-// Allowed dotfiles with their predefined titles
-const ALLOWED_DOTFILES: Record<string, string> = {
-  ".env.example": "envExample",
-  ".gitignore": "gitignore",
-}
+import { MAX_FILE_SIZE, ALLOWED_FILENAMES_NO_EXT, UPLOAD_SUPPORTED_EXTENSIONS, ALLOWED_DOTFILES } from "@/lib/constants"
 
 // Check if a file should be excluded from upload
 function shouldExcludeFile(file: File): { excluded: boolean; reason?: string } {
@@ -225,7 +191,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
     }
 
     const ext = `.${file.name.split(".").pop()?.toLowerCase()}`
-    if (!PROJECT_UPLOAD_SUPPORTED_EXTENSIONS.includes(ext)) {
+    if (!UPLOAD_SUPPORTED_EXTENSIONS.includes(ext)) {
       const extLabel = ext === "." ? "no extension" : `extension "${ext}"`
       return `${file.name}: Unsupported file type — ${extLabel} is not in the allowed list`
     }
@@ -555,7 +521,7 @@ export function ProjectUploadForm({ projectId, folderId: initialFolderId, folder
               <input
                 type="file"
                 onChange={handleFileInput}
-                accept={PROJECT_UPLOAD_SUPPORTED_EXTENSIONS.join(",")}
+                accept={UPLOAD_SUPPORTED_EXTENSIONS.join(",")}
                 multiple
                 className="absolute inset-0 cursor-pointer opacity-0"
               />
