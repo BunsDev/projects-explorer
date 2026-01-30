@@ -6,7 +6,7 @@
 
 ## Quick Start
 
-Want to deploy your own instance? Follow the **[Setup Guide →](https://projects-explorer.vercel.app)/setup)** for step-by-step instructions, or use the one-click deploy button above.
+Want to deploy your own instance? Follow the **[Setup Guide →](https://projects-explorer.vercel.app) /setup)** for step-by-step instructions, or use the one-click deploy button above.
 
 **TL;DR:**
 
