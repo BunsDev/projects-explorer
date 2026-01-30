@@ -401,88 +401,99 @@ export function ProjectDetailClient({
           )
         })()}
 
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "tree")} className="space-y-4">
-          <TabsList className="w-full sm:w-auto grid grid-cols-2">
-            <TabsTrigger value="tree" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
-              <FolderTreeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-              <span className="truncate">Code View</span>
-            </TabsTrigger>
-            <TabsTrigger value="grid" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
-              <LayoutGrid className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-              <span className="truncate">Grid View</span>
-            </TabsTrigger>
-          </TabsList>
+        {/* Defer Tabs (and Radix IDs) until after mount to avoid server/client hydration mismatch */}
+        {mounted ? (
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "tree")} className="space-y-4">
+            <TabsList className="w-full sm:w-auto grid grid-cols-2">
+              <TabsTrigger value="tree" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                <FolderTreeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">Code View</span>
+              </TabsTrigger>
+              <TabsTrigger value="grid" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                <LayoutGrid className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">Grid View</span>
+              </TabsTrigger>
+            </TabsList>
 
-          {/* File Manager with drag-and-drop */}
-          <TabsContent value="tree" className="mt-4">
-            <FileManager
-              projectId={project.id}
-              projectName={project.name}
-              folders={localTreeFolders}
-              files={localTreeFiles}
-              onDataChange={handleDataChange}
-            />
-          </TabsContent>
+            {/* File Manager with drag-and-drop */}
+            <TabsContent value="tree" className="mt-4">
+              <FileManager
+                projectId={project.id}
+                projectName={project.name}
+                folders={localTreeFolders}
+                files={localTreeFiles}
+                onDataChange={handleDataChange}
+              />
+            </TabsContent>
 
-          {/* Traditional grid view */}
-          <TabsContent value="grid" className="mt-4">
-            <div className="grid gap-4 sm:gap-6 lg:grid-cols-[250px_1fr]">
-              {/* Sidebar with folder tree */}
-              <aside className="rounded-lg border bg-card p-4 order-2 lg:order-1 min-w-0">
-                <FolderTree
-                  projectId={project.id}
-                  folders={folders}
-                  currentFolderId={currentFolderId || undefined}
-                  onFolderSelect={handleFolderSelect}
-                  onFoldersChange={setFolders}
-                />
-              </aside>
+            {/* Traditional grid view */}
+            <TabsContent value="grid" className="mt-4">
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[250px_1fr]">
+                {/* Sidebar with folder tree */}
+                <aside className="rounded-lg border bg-card p-4 order-2 lg:order-1 min-w-0">
+                  <FolderTree
+                    projectId={project.id}
+                    folders={folders}
+                    currentFolderId={currentFolderId || undefined}
+                    onFolderSelect={handleFolderSelect}
+                    onFoldersChange={setFolders}
+                  />
+                </aside>
 
-              {/* Main content area */}
-              <div className="space-y-4 order-1 lg:order-2 min-w-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      {currentFolderId
-                        ? folders.find((f) => f.id === currentFolderId)?.name || "Files"
-                        : "All Files"}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {(() => {
-                        const displayFolders = currentFolderId === null
+                {/* Main content area */}
+                <div className="space-y-4 order-1 lg:order-2 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold">
+                        {currentFolderId
+                          ? folders.find((f) => f.id === currentFolderId)?.name || "Files"
+                          : "All Files"}
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        {(() => {
+                          const displayFolders = currentFolderId === null
+                            ? folders.filter((f) => f.parentId === null)
+                            : folders.filter((f) => f.parentId === currentFolderId)
+                          const folderCount = displayFolders.length
+                          const parts = []
+                          if (folderCount > 0) parts.push(`${folderCount} folder${folderCount !== 1 ? "s" : ""}`)
+                          parts.push(`${files.length} file${files.length !== 1 ? "s" : ""}`)
+                          return parts.join(", ")
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isLoadingFiles ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                    </div>
+                  ) : (
+                    <FileGrid
+                      files={files}
+                      folders={
+                        currentFolderId === null
                           ? folders.filter((f) => f.parentId === null)
                           : folders.filter((f) => f.parentId === currentFolderId)
-                        const folderCount = displayFolders.length
-                        const parts = []
-                        if (folderCount > 0) parts.push(`${folderCount} folder${folderCount !== 1 ? "s" : ""}`)
-                        parts.push(`${files.length} file${files.length !== 1 ? "s" : ""}`)
-                        return parts.join(", ")
-                      })()}
-                    </p>
-                  </div>
+                      }
+                      onFilesChange={setFiles}
+                      onFolderClick={(folderId) => setCurrentFolderId(folderId)}
+                      showFolders={true}
+                    />
+                  )}
                 </div>
-
-                {isLoadingFiles ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                  </div>
-                ) : (
-                  <FileGrid
-                    files={files}
-                    folders={
-                      currentFolderId === null
-                        ? folders.filter((f) => f.parentId === null)
-                        : folders.filter((f) => f.parentId === currentFolderId)
-                    }
-                    onFilesChange={setFiles}
-                    onFolderClick={(folderId) => setCurrentFolderId(folderId)}
-                    showFolders={true}
-                  />
-                )}
               </div>
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className="space-y-4" aria-hidden>
+            <div className="w-full sm:w-auto grid grid-cols-2 rounded-lg bg-muted p-1 gap-1 max-w-[280px]">
+              <div className="rounded-md bg-background px-3 py-2 flex items-center gap-2 text-xs sm:text-sm" />
+              <div className="rounded-md px-3 py-2 flex items-center gap-2 text-xs sm:text-sm opacity-50" />
             </div>
-          </TabsContent>
-        </Tabs>
+            <div className="mt-4 min-h-[200px] rounded-lg border bg-card animate-pulse" />
+          </div>
+        )}
 
         {/* Project Share Settings Modal */}
         <ProjectShareSettingsModal
