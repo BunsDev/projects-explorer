@@ -41,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe, ExternalLink, HardDrive, ChevronDown, ChevronRight, Lock, Clock, Download, Shield, Github } from "lucide-react"
+import { FolderOpen, Plus, MoreVertical, Pencil, Trash2, FileArchive, Tag, Globe, ExternalLink, HardDrive, ChevronDown, ChevronRight, Lock, Clock, Download, Shield, Github, LayoutGrid, List } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -77,10 +77,13 @@ interface ProjectListProps {
   initialCategories: Category[]
 }
 
+type ViewMode = "grid" | "rows"
+
 export function ProjectList({ initialProjects, initialCategories }: ProjectListProps) {
   const [projects, setProjects] = useState<Project[]>(initialProjects)
   const [categories, setCategories] = useState<Category[]>(initialCategories)
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>("grid")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -92,7 +95,18 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     setMounted(true)
+    // Load view mode preference from localStorage
+    const savedViewMode = localStorage.getItem("projectViewMode") as ViewMode | null
+    if (savedViewMode === "grid" || savedViewMode === "rows") {
+      setViewMode(savedViewMode)
+    }
   }, [])
+
+  // Save view mode preference
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    localStorage.setItem("projectViewMode", mode)
+  }
 
   // Form state
   const [name, setName] = useState("")
@@ -266,9 +280,32 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex items-center bg-card/50 backdrop-blur-sm rounded-xl border border-border/40 p-0.5">
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="icon-sm"
+              className="px-2 size-8"
+              onClick={() => handleViewModeChange("grid")}
+              title="Grid view"
+            >
+              <LayoutGrid className="size-4" />
+              <span className="sr-only">Grid view</span>
+            </Button>
+            <Button
+              variant={viewMode === "rows" ? "default" : "ghost"}
+              size="icon-sm"
+              className="px-2 size-8"
+              onClick={() => handleViewModeChange("rows")}
+              title="List view"
+            >
+              <List className="size-4" />
+              <span className="sr-only">List view</span>
+            </Button>
+          </div>
           <CategoryManager categories={categories} onCategoriesChange={refreshCategories} />
           <GitHubRepoConnect>
-            <Button variant="outline" size="icon" className="gap-2 border-2 border-muted-foreground/30 hover:bg-accent/50 hover:text-accent-foreground">
+            <Button variant="outline" size="icon-sm" className="gap-2 hover:bg-accent/50 hover:text-accent-foreground">
               <Github className="size-4" />
               <span className="sr-only">Connect GitHub Repo</span>
             </Button>
@@ -282,7 +319,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
               }}
             >
               <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
+                <Button variant="outline" size="icon-sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
                   <Plus className="size-4" />
                   <span className="sr-only">New Project</span>
                 </Button>
@@ -403,6 +440,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                             Inherit
                           </Button>
                           <Switch
+                            className="size-5"
                             checked={shareEnabled ?? true}
                             onCheckedChange={setShareEnabled}
                             disabled={shareEnabled === null}
@@ -430,11 +468,13 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                             type="button"
                             variant={sharePasswordRequired === null ? "secondary" : "ghost"}
                             size="sm"
+                            className="size-5"
                             onClick={() => setSharePasswordRequired(null)}
                           >
                             Inherit
                           </Button>
                           <Switch
+                            className="size-5"
                             checked={sharePasswordRequired ?? false}
                             onCheckedChange={setSharePasswordRequired}
                             disabled={sharePasswordRequired === null}
@@ -491,6 +531,8 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                 <DialogFooter>
                   <Button
                     variant="outline"
+                    size="sm"
+                    className="w-full"
                     onClick={() => {
                       setIsCreateOpen(false)
                       resetForm()
@@ -498,14 +540,14 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleCreate} disabled={isLoading || !name.trim()}>
+                  <Button size="sm" className="w-full" onClick={handleCreate} disabled={isLoading || !name.trim()}>
                     {isLoading ? "Creating..." : "Create Project"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           ) : (
-            <Button variant="outline" size="icon" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
+            <Button variant="outline" size="icon-sm" className="gap-2 border-2 border-primary hover:bg-accent/50 hover:text-accent-foreground">
               <Plus className="size-4" />
               <span className="sr-only">New Project</span>
             </Button>
@@ -516,11 +558,13 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
       {/* Category filter — glass pills */}
       {categories.length > 0 && (
         <div className="flex flex-wrap gap-2" aria-label="Project categories">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setSelectedCategoryFilter(null)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+              "rounded-full px-2 py-1 text-sm font-medium transition-colors whitespace-nowrap",
               "glass-pill",
               selectedCategoryFilter === null
                 ? "text-foreground ring-1 ring-border"
@@ -528,17 +572,19 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
             )}
           >
             All ({projects.length})
-          </button>
+          </Button>
           {categories.map((category) => {
             const count = projects.filter((p) => p.categoryId === category.id).length
             const isSelected = selectedCategoryFilter === category.id
             return (
-              <button
+              <Button
                 key={category.id}
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setSelectedCategoryFilter(category.id)}
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+                  "rounded-full px-2 py-1 text-sm font-medium transition-colors whitespace-nowrap",
                   "glass-pill",
                   isSelected
                     ? "text-foreground ring-1 ring-border"
@@ -546,14 +592,16 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                 )}
               >
                 {category.name} ({count})
-              </button>
+              </Button>
             )
           })}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setSelectedCategoryFilter("uncategorized")}
             className={cn(
-              "rounded-full px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+              "rounded-full px-2 py-1 text-sm font-medium transition-colors whitespace-nowrap",
               "glass-pill",
               selectedCategoryFilter === "uncategorized"
                 ? "text-foreground ring-1 ring-border"
@@ -561,7 +609,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
             )}
           >
             Uncategorized ({projects.filter((p) => !p.categoryId).length})
-          </button>
+          </Button>
         </div>
       )}
 
@@ -577,6 +625,7 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
             </p>
             <Button
               variant="outline"
+              size="sm"
               className="mt-6"
               onClick={() => setSelectedCategoryFilter(null)}
             >
@@ -594,13 +643,13 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
             <p className="mt-2 text-sm text-muted-foreground text-center max-w-sm">
               Create your first project to start organizing files
             </p>
-            <Button variant="glass" className="mt-6" onClick={() => setIsCreateOpen(true)}>
+            <Button variant="glass" size="sm" className="mt-6" onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Project
             </Button>
           </div>
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map((project) => (
             <Card key={project.id} className="group relative">
@@ -617,8 +666,8 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="relative z-20 h-8 w-8 opacity-0 group-hover:opacity-100"
+                        size="icon-sm"
+                        className="relative z-20 size-8 opacity-0 group-hover:opacity-100"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <MoreVertical className="h-4 w-4" />
@@ -657,6 +706,78 @@ export function ProjectList({ initialProjects, initialCategories }: ProjectListP
                   </div>
                 </div>
               </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {filteredProjects.map((project) => (
+            <Card key={project.id} className="group relative">
+              <Link href={`/dashboard/projects/${project.id}`} className="absolute inset-0 z-10" />
+              <div className="flex items-center gap-4 p-4">
+                <div className="rounded-xl stat-icon-bg p-2.5 shrink-0">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold truncate">{project.name}</h3>
+                    {project.categoryName && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-xs shrink-0",
+                          getCategoryColorClasses(project.categoryColor).bg,
+                          getCategoryColorClasses(project.categoryColor).text
+                        )}
+                      >
+                        {project.categoryName}
+                      </Badge>
+                    )}
+                  </div>
+                  {project.description && (
+                    <p className="text-sm text-muted-foreground truncate mt-0.5">
+                      {project.description}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1 border border-primary/20 rounded-full px-2 py-0.5">
+                      <FileArchive className="size-3 text-primary" strokeWidth={1.5} />
+                      <span className="font-medium text-primary">{project.fileCount} {project.fileCount === 1 ? "file" : "files"}</span>
+                    </div>
+                    <div className="flex items-center gap-1 border border-primary/20 rounded-full px-2 py-0.5">
+                      <HardDrive className="size-3 text-primary" strokeWidth={1.5} />
+                      <span className="font-medium text-primary">{formatBytes(project.totalSize)}</span>
+                    </div>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="relative z-20 size-8"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditDialog(project)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() => openDeleteDialog(project)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
             </Card>
           ))}
         </div>
