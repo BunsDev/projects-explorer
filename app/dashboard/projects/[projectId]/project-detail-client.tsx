@@ -29,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2, ChevronDown, Archive, FolderOpen } from "lucide-react"
+import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2, ChevronDown, Archive, FolderOpen, Edit } from "lucide-react"
 import { getFilesAction, updateProjectDeployedUrlAction, fetchGitHubTreeAction, saveGitHubSnapshotAction, syncGitHubRepoAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree"
 
@@ -314,20 +314,27 @@ export function ProjectDetailClient({
       <DashboardHeader title={project.name ?? "Project"} />
       <main className="mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-screen-2xl w-full pb-4 sm:pb-8">
         <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <BreadcrumbNav items={getBreadcrumbPath()} />
+          <div className="flex flex-col gap-1">
+            <BreadcrumbNav items={getBreadcrumbPath()} />
+            {project.description && (
+              <p className="text-sm text-muted-foreground max-w-2xl">
+                {project.description}
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Deployed URL button/indicator */}
             {mounted ? (
               <Dialog open={isEditingUrl} onOpenChange={setIsEditingUrl}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground">
-                    <Globe className="size-4" />
-                    <span className="hidden sm:inline">{deployedUrl ? "Preview URL" : "Add Preview URL"}</span>
+                    {deployedUrl ? <Edit className="size-4" /> : <Globe className="size-4" />}
+                    <span className="hidden sm:inline">{deployedUrl ? "Edit Preview" : "Add Preview"}</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Deployed Preview URL</DialogTitle>
+                    <DialogTitle>{deployedUrl ? "Edit Preview" : "Add Preview"}</DialogTitle>
                     <DialogDescription>
                       Add a deployment URL to preview your project live. This could be a Vercel, Netlify, or any other hosted URL.
                     </DialogDescription>
@@ -605,6 +612,9 @@ export function ProjectDetailClient({
                   folders={localTreeFolders}
                   files={localTreeFiles}
                   isGitHubProject={isGitHubProject}
+                  githubOwner={project.githubOwner}
+                  githubRepo={project.githubRepo}
+                  githubBranch={project.githubBranch}
                   onDataChange={handleDataChange}
                 />
               )}

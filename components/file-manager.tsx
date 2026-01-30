@@ -66,6 +66,7 @@ import {
   RefreshCw,
   Link2,
   ShieldCheck,
+  Github,
 } from "lucide-react"
 import { FileShareSettingsModal } from "@/components/share-settings"
 import { CodeBlock } from "@/components/code-block"
@@ -83,6 +84,7 @@ import {
   regenerateShareLinkHardenedAction,
 } from "@/app/dashboard/actions"
 import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
 
 // Types
 type TreeFolder = {
@@ -109,6 +111,9 @@ interface FileManagerProps {
   folders: TreeFolder[]
   files: TreeFile[]
   isGitHubProject?: boolean
+  githubOwner?: string | null
+  githubRepo?: string | null
+  githubBranch?: string | null
   onDataChange?: () => void
 }
 
@@ -403,11 +408,17 @@ function FilePreview({
   onClose,
   projectId,
   isGitHubProject,
+  githubOwner,
+  githubRepo,
+  githubBranch,
 }: {
   file: TreeFile
   onClose: () => void
   projectId?: string
   isGitHubProject?: boolean
+  githubOwner?: string | null
+  githubRepo?: string | null
+  githubBranch?: string | null
 }) {
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -442,6 +453,11 @@ function FilePreview({
   const isImage = file.mimeType.startsWith("image/")
   const isPdf = file.mimeType === "application/pdf"
 
+  // Build GitHub URL for this file if applicable
+  const githubFileUrl = isGitHubProject && githubOwner && githubRepo && githubBranch && file.githubPath && file.githubPath.length > 0
+    ? `https://github.com/${githubOwner}/${githubRepo}/blob/${githubBranch}/${file.githubPath}`
+    : null
+
   return (
     <div className="flex h-full flex-col border-l bg-background">
       <div className="flex items-center justify-between border-b px-4 py-2 bg-muted/30">
@@ -450,16 +466,24 @@ function FilePreview({
           <span className="truncate font-medium">{file.originalFilename}</span>
         </div>
         <div className="flex items-center gap-1">
+          {githubFileUrl && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={githubFileUrl || ""} target="_blank" rel="noopener noreferrer">
+                <Github className="size-4" />
+              </Link>
+            </Button>
+          )}
+
           <Button variant="ghost" size="sm" onClick={copyLink}>
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
           </Button>
           <Button variant="ghost" size="sm" asChild>
-            <a href={file.blobUrl} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4" />
-            </a>
+            <Link href={file.blobUrl || ""} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="size-4" />
+            </Link>
           </Button>
           <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </Button>
         </div>
       </div>
@@ -498,6 +522,9 @@ export function FileManager({
   folders,
   files,
   isGitHubProject,
+  githubOwner,
+  githubRepo,
+  githubBranch,
   onDataChange,
 }: FileManagerProps) {
   // State
@@ -1298,11 +1325,14 @@ export function FileManager({
 
         {/* Preview panel */}
         {previewFile && (
-          <FilePreview 
-            file={previewFile} 
+          <FilePreview
+            file={previewFile}
             onClose={() => setPreviewFile(null)}
             projectId={projectId}
             isGitHubProject={isGitHubProject}
+            githubOwner={githubOwner}
+            githubRepo={githubRepo}
+            githubBranch={githubBranch}
           />
         )}
       </div>
