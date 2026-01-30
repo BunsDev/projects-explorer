@@ -492,7 +492,7 @@ export function ProjectDetailClient({
         {/* GitHub Project Info Banner */}
         {isGitHubProject && (
           <Card className="mb-4">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 py-0">
               <CardTitle className="text-base font-medium flex items-center gap-2">
                 <Github className="size-4" />
                 GitHub Repository

@@ -1,6 +1,6 @@
 {
   "name": "projects-explorer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Interface for viewing and storing projects that can be shared and downloaded. Since you own the storage, you own the files and cannot be rugged by external parties.",
   "author": "Val Alexander",

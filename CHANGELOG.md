@@ -7,13 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-30
+
 ### Added
 - GitHub snapshot extraction with file filtering - extract individual files from repository zips
 - Configurable snapshot extraction settings (excluded patterns, allowed dotfiles, size limits)
 - New constants for snapshot extraction: `SNAPSHOT_EXCLUDED_PATTERNS`, `SNAPSHOT_ALLOWED_DOTFILES`, `SNAPSHOT_MAX_FILE_SIZE`, `SNAPSHOT_MAX_TOTAL_FILES`
+- GitHub file links displayed in FilePreview component for quick navigation to source
+- Project description display in project detail view for better context
+- Dropdown menu for GitHub save options (save as zip or extract files)
 
 ### Changed
 - `saveGitHubSnapshotAction` now supports an `extractFiles` parameter to save individual files instead of zips
+- Refactor external URL links (deployed URL, GitHub repo) to use Next.js Link component for improved accessibility
+- Update preview URL editing UI with clearer link handling
 
 ## [0.1.0] - 2026-01-30
 
@@ -60,5 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hydration warnings on button components
 - Dialog component hydration issues across multiple components
 
-[Unreleased]: https://github.com/BunsDev/projects-explorer/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/BunsDev/projects-explorer/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/BunsDev/projects-explorer/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/BunsDev/projects-explorer/releases/tag/v0.1.0

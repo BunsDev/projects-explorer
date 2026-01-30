@@ -71,6 +71,11 @@ import {
 import { FileShareSettingsModal } from "@/components/share-settings"
 import { CodeBlock } from "@/components/code-block"
 import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable"
+import {
   createFolderAction,
   renameFolderAction,
   deleteFolderAction,
@@ -459,30 +464,30 @@ function FilePreview({
     : null
 
   return (
-    <div className="flex h-full flex-col border-l bg-background">
-      <div className="flex items-center justify-between border-b px-4 py-2 bg-muted/30">
-        <div className="flex items-center gap-2 min-w-0">
+    <div className="flex h-full flex-col bg-background">
+      <div className="flex items-center justify-between border-b px-3 py-2 bg-muted/30 shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {getFileIcon(file.originalFilename, file.mimeType, "md")}
-          <span className="truncate font-medium">{file.originalFilename}</span>
+          <span className="truncate font-medium text-sm">{file.originalFilename}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 shrink-0">
           {githubFileUrl && (
-            <Button variant="ghost" size="sm" asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
               <Link href={githubFileUrl || ""} target="_blank" rel="noopener noreferrer">
                 <Github className="size-4" />
               </Link>
             </Button>
           )}
 
-          <Button variant="ghost" size="sm" onClick={copyLink}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyLink}>
             {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
           </Button>
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
             <Link href={file.blobUrl || ""} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="size-4" />
             </Link>
           </Button>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
             <X className="size-4" />
           </Button>
         </div>
@@ -1290,52 +1295,106 @@ export function FileManager({
         </div>
       )}
 
-      {/* Main content */}
-      <div
-        className="grid overflow-hidden"
-        style={{
-          gridTemplateColumns: previewFile ? "1fr 1fr" : "1fr",
-          height: "calc(100vh - 300px)",
-          minHeight: "400px",
-        }}
-      >
-        {/* Tree view */}
-        <ScrollArea className="h-full">
-          {/* Root drop zone */}
-          <div
-            className={cn(
-              "p-2 min-h-full",
-              dragOverId === "root" && "bg-primary/10"
-            )}
-            onDragOver={(e) => handleDragOver(e, null, true)}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, null)}
+      {/* Main content with resizable panels */}
+      {previewFile ? (
+        <ResizablePanelGroup
+          key="with-preview"
+          direction="horizontal"
+          className="overflow-hidden"
+          style={{
+            height: "calc(100vh - 300px)",
+            minHeight: "400px",
+          }}
+          autoSaveId="file-manager-with-preview"
+        >
+          {/* Tree view panel */}
+          <ResizablePanel
+            id="file-tree"
+            order={1}
+            defaultSize={40}
+            minSize={20}
+            maxSize={75}
+            className="h-full"
           >
-            {tree.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <Folder className="h-12 w-12 mb-4" />
-                <p>No files yet</p>
-                <p className="text-sm">Upload files or create folders to get started</p>
+            <ScrollArea className="h-full">
+              {/* Root drop zone */}
+              <div
+                className={cn(
+                  "p-2 min-h-full",
+                  dragOverId === "root" && "bg-primary/10"
+                )}
+                onDragOver={(e) => handleDragOver(e, null, true)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, null)}
+              >
+                {tree.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                    <Folder className="h-12 w-12 mb-4" />
+                    <p>No files yet</p>
+                    <p className="text-sm">Upload files or create folders to get started</p>
+                  </div>
+                ) : (
+                  tree.map((node, idx) => renderNode(node, 0, idx === tree.length - 1, []))
+                )}
               </div>
-            ) : (
-              tree.map((node, idx) => renderNode(node, 0, idx === tree.length - 1, []))
-            )}
-          </div>
-        </ScrollArea>
+            </ScrollArea>
+          </ResizablePanel>
 
-        {/* Preview panel */}
-        {previewFile && (
-          <FilePreview
-            file={previewFile}
-            onClose={() => setPreviewFile(null)}
-            projectId={projectId}
-            isGitHubProject={isGitHubProject}
-            githubOwner={githubOwner}
-            githubRepo={githubRepo}
-            githubBranch={githubBranch}
-          />
-        )}
-      </div>
+          {/* Resize handle */}
+          <ResizableHandle withHandle />
+
+          {/* Preview panel */}
+          <ResizablePanel
+            id="file-preview"
+            order={2}
+            defaultSize={60}
+            minSize={25}
+            maxSize={80}
+            className="h-full"
+          >
+            <FilePreview
+              file={previewFile}
+              onClose={() => setPreviewFile(null)}
+              projectId={projectId}
+              isGitHubProject={isGitHubProject}
+              githubOwner={githubOwner}
+              githubRepo={githubRepo}
+              githubBranch={githubBranch}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div
+          className="overflow-hidden"
+          style={{
+            height: "calc(100vh - 300px)",
+            minHeight: "400px",
+          }}
+        >
+          <ScrollArea className="h-full">
+            {/* Root drop zone */}
+            <div
+              className={cn(
+                "p-2 min-h-full",
+                dragOverId === "root" && "bg-primary/10"
+              )}
+              onDragOver={(e) => handleDragOver(e, null, true)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, null)}
+            >
+              {tree.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                  <Folder className="h-12 w-12 mb-4" />
+                  <p>No files yet</p>
+                  <p className="text-sm">Upload files or create folders to get started</p>
+                </div>
+              ) : (
+                tree.map((node, idx) => renderNode(node, 0, idx === tree.length - 1, []))
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
 
       {/* Create Folder Dialog */}
       <Dialog open={createFolderOpen} onOpenChange={setCreateFolderOpen}>
