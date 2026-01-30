@@ -351,14 +351,14 @@ export function ProjectDetailClient({
                     {deployedUrl && (
                       <div className="flex items-center gap-2 rounded-lg border bg-muted/50 p-3">
                         <Globe className="h-4 w-4 text-green-500" />
-                        <a
+                        <Link
                           href={deployedUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex-1 truncate text-sm text-primary hover:underline"
                         >
                           {deployedUrl}
-                        </a>
+                        </Link>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -496,7 +496,7 @@ export function ProjectDetailClient({
                     Last synced: {new Date(project.lastSyncedAt).toLocaleDateString()}
                   </span>
                 )}
-                <a
+                <Link
                   href={`https://github.com/${project.githubOwner}/${project.githubRepo}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -504,7 +504,7 @@ export function ProjectDetailClient({
                 >
                   {project.githubOwner}/{project.githubRepo}
                   <ExternalLink className="size-3" />
-                </a>
+                </Link>
               </div>
             </CardHeader>
             {(gitHubTreeError || snapshotMessage) && (
@@ -546,14 +546,10 @@ export function ProjectDetailClient({
                   )}
                 </CardTitle>
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => window.open(deployedUrl, "_blank")}
-                    className="hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
-                  >
-                    <ExternalLink className="size-4" />
-                    <span className="sr-only">Open in New Tab</span>
+                  <Button variant="outline" size="icon" asChild>
+                    <Link href={deployedUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="size-4" />
+                    </Link>
                   </Button>
                   <Button
                     variant="outline"
