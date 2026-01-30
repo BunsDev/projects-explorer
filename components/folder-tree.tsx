@@ -31,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Folder, FolderPlus, MoreVertical, Pencil, Trash2, ChevronRight, Move, Check } from "lucide-react"
+import { Folder, FolderPlus, MoreVertical, Pencil, Trash2, ChevronRight, ChevronDown, Move, Check } from "lucide-react"
 import { createFolderAction, renameFolderAction, deleteFolderAction, moveFolderAction } from "@/app/dashboard/actions"
 import { cn } from "@/lib/utils"
 
@@ -228,7 +228,9 @@ export function FolderTree({
           style={{ paddingLeft: `${8 + depth * 16}px` }}
           onClick={() => onFolderSelect(folder.id)}
         >
-          {subfolders.length > 0 ? (
+          {isSelected ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : subfolders.length > 0 ? (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           ) : (
             <span className="w-4" />
@@ -294,7 +296,11 @@ export function FolderTree({
         )}
         onClick={() => onFolderSelect(null)}
       >
-        <span className="w-4" />
+        {!currentFolderId ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <span className="w-4" />
+        )}
         <Folder className={cn("h-4 w-4", !currentFolderId ? "text-primary" : "text-muted-foreground")} />
         <span className="flex-1">All Files</span>
       </div>
