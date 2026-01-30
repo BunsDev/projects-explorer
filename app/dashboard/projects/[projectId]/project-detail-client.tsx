@@ -29,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2, ChevronDown, ChevronRight, Archive, FolderOpen, Edit, Eye } from "lucide-react"
+import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, Settings2, X, Youtube, Share2, Github, RefreshCw, Download, Loader2, ChevronDown, ChevronRight, Archive, FolderOpen, Edit, Eye, Save } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { getFilesAction, updateProjectDeployedUrlAction, fetchGitHubTreeAction, saveGitHubSnapshotAction, syncGitHubRepoAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree"
@@ -137,13 +137,16 @@ export function ProjectDetailClient({
     setMounted(true)
   }, [])
 
-  // Deployed URL state
-  const [deployedUrl, setDeployedUrl] = useState(project.deployedUrl || "")
+  // Deployed URL state - filter out URLs that contain the app's own URL to avoid iframe recursion
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || ""
+  const initialDeployedUrl = project.deployedUrl && (!appUrl || !project.deployedUrl.includes(appUrl)) 
+    ? project.deployedUrl 
+    : ""
+  const [deployedUrl, setDeployedUrl] = useState(initialDeployedUrl)
   const [isEditingUrl, setIsEditingUrl] = useState(false)
   const [urlInput, setUrlInput] = useState(project.deployedUrl || "")
   const [isSavingUrl, setIsSavingUrl] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
-
   // Share settings modal state
   const [isShareSettingsOpen, setIsShareSettingsOpen] = useState(false)
 
@@ -430,8 +433,8 @@ export function ProjectDetailClient({
               onClick={() => setIsShareSettingsOpen(true)}
               className="gap-2 bg-transparent hover:bg-accent/50 hover:text-accent-foreground border-muted-foreground"
             >
-              <Share2 className="size-4" />
-              <span className="hidden sm:inline">Share Settings</span>
+              <Settings2 className="size-4" />
+              <span className="sr-only">Share Settings</span>
             </Button>
 
             {/* GitHub project buttons */}
@@ -449,7 +452,7 @@ export function ProjectDetailClient({
                   ) : (
                     <RefreshCw className="size-4" />
                   )}
-                  <span className="hidden sm:inline">Sync</span>
+                  <span className="sr-only">Sync</span>
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -462,9 +465,9 @@ export function ProjectDetailClient({
                       {isSavingSnapshot ? (
                         <Loader2 className="size-4 animate-spin" />
                       ) : (
-                        <Download className="size-4" />
+                        <Save className="size-4" />
                       )}
-                      <span className="hidden sm:inline">Save Snapshot</span>
+                      <span className="sr-only">Save Snapshot</span>
                       <ChevronDown className="size-3" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -544,7 +547,7 @@ export function ProjectDetailClient({
             : deployedUrl
           return (
             <Collapsible open={isPreviewOpen} onOpenChange={setIsPreviewOpen} className="mb-3">
-              <div className="flex items-center justify-between rounded-lg border bg-card px-2 py-1.5 sm:px-3 sm:py-2">
+              <div className="flex items-center justify-between rounded-t-lg border bg-card px-2 py-1.5 sm:px-3 sm:py-2">
                 <CollapsibleTrigger asChild>
                   <button className="flex items-center gap-2 sm:gap-3 text-sm hover:opacity-80 transition-opacity">
                     {isPreviewOpen ? (
@@ -574,7 +577,7 @@ export function ProjectDetailClient({
               <CollapsibleContent>
                 <div className="relative w-full overflow-hidden rounded-b-lg border border-t-0 bg-muted/30 h-[280px] sm:h-[360px] md:h-[440px] lg:h-[996px]">
                   <iframe
-                    src={embedSrc}
+                    src={deployedUrl || embedSrc}
                     className="h-full w-full border-0"
                     title={isYouTube ? "YouTube video" : "Deployed Preview"}
                     allow={isYouTube ? "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" : undefined}
