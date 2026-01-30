@@ -527,6 +527,11 @@ export function FileManager({
   const [createFolderFromSelectionOpen, setCreateFolderFromSelectionOpen] = useState(false)
   const [newFolderNameForSelection, setNewFolderNameForSelection] = useState("")
 
+  // Move folder dialog state
+  const [moveFolderOpen, setMoveFolderOpen] = useState(false)
+  const [moveFolder, setMoveFolder] = useState<TreeFolder | null>(null)
+  const [moveFolderTargetId, setMoveFolderTargetId] = useState<string | null>(null)
+
   // Dropdown menu state for tree items
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
@@ -619,7 +624,7 @@ export function FileManager({
 
     setIsLoading(true)
     const result = await moveFileAction(moveFileId, selectedTargetFolder)
-    
+
     if (result.success) {
       setLocalFiles((prev) =>
         prev.map((f) => (f.id === moveFileId ? { ...f, folderId: selectedTargetFolder } : f))
@@ -636,7 +641,7 @@ export function FileManager({
         variant: "destructive",
       })
     }
-    
+
     setMoveFileOpen(false)
     setMoveFileId(null)
     setMoveFileName("")
@@ -652,7 +657,7 @@ export function FileManager({
     setIsLoading(true)
     const fileIds = filesToMove.map(f => f.id)
     const result = await moveFilesAction(fileIds, bulkMoveTargetFolder)
-    
+
     if (result.success) {
       setLocalFiles((prev) =>
         prev.map((f) => (fileIds.includes(f.id) ? { ...f, folderId: bulkMoveTargetFolder } : f))
@@ -670,7 +675,7 @@ export function FileManager({
         variant: "destructive",
       })
     }
-    
+
     setBulkMoveOpen(false)
     setBulkMoveTargetFolder(null)
     setIsLoading(false)
@@ -682,10 +687,10 @@ export function FileManager({
     if (filesToMove.length === 0 || !newFolderNameForSelection.trim()) return
 
     setIsLoading(true)
-    
+
     // First create the folder
     const createResult = await createFolderAction(projectId, newFolderNameForSelection.trim())
-    
+
     if (!createResult.success || !createResult.folderId) {
       toast({
         title: "Error",
@@ -697,20 +702,20 @@ export function FileManager({
     }
 
     const newFolderId = createResult.folderId
-    
+
     // Add the new folder to local state
     setLocalFolders((prev) => [
       ...prev,
       { id: newFolderId, name: newFolderNameForSelection.trim(), parentId: null },
     ])
-    
+
     // Expand the new folder so user sees the files
     setExpandedFolders((prev) => new Set([...prev, newFolderId]))
 
     // Now move the files into the new folder
     const fileIds = filesToMove.map(f => f.id)
     const moveResult = await moveFilesAction(fileIds, newFolderId)
-    
+
     if (moveResult.success) {
       setLocalFiles((prev) =>
         prev.map((f) => (fileIds.includes(f.id) ? { ...f, folderId: newFolderId } : f))
@@ -728,7 +733,7 @@ export function FileManager({
         variant: "destructive",
       })
     }
-    
+
     setCreateFolderFromSelectionOpen(false)
     setNewFolderNameForSelection("")
     setIsLoading(false)
@@ -984,6 +989,49 @@ export function FileManager({
     setDeleteFolderOpen(true)
   }
 
+  // Get all descendant folder IDs (folders inside the given folder) to exclude from move targets
+  const getDescendantIds = useCallback((folderId: string, folderList: TreeFolder[]): Set<string> => {
+    const children = folderList.filter((f) => f.parentId === folderId)
+    const desc = new Set(children.map((c) => c.id))
+    children.forEach((c) => getDescendantIds(c.id, folderList).forEach((d) => desc.add(d)))
+    return desc
+  }, [])
+
+  const openMoveFolder = (folder: TreeFolder) => {
+    setMoveFolder(folder)
+    setMoveFolderTargetId(folder.parentId)
+    setMoveFolderOpen(true)
+  }
+
+  const handleMoveFolder = useCallback(async () => {
+    if (!moveFolder) return
+
+    setIsLoading(true)
+    const result = await moveFolderAction(moveFolder.id, moveFolderTargetId)
+
+    if (result.success) {
+      setLocalFolders((prev) =>
+        prev.map((f) => (f.id === moveFolder.id ? { ...f, parentId: moveFolderTargetId } : f))
+      )
+      toast({
+        title: "Folder Moved",
+        description: `"${moveFolder.name}" has been moved successfully.`,
+      })
+      onDataChange?.()
+    } else {
+      toast({
+        title: "Error",
+        description: result.error || "Failed to move folder",
+        variant: "destructive",
+      })
+    }
+
+    setMoveFolderOpen(false)
+    setMoveFolder(null)
+    setMoveFolderTargetId(null)
+    setIsLoading(false)
+  }, [moveFolder, moveFolderTargetId, toast, onDataChange])
+
   // Shared menu content for both context menu and dropdown
   const renderMenuItems = (node: TreeNode, isDropdown: boolean) => {
     const MenuItem = isDropdown ? DropdownMenuItem : ContextMenuItem
@@ -999,6 +1047,10 @@ export function FileManager({
           <MenuItem onClick={() => openRenameFolder(node.folder!)}>
             <Pencil className="mr-2 h-4 w-4" />
             Rename
+          </MenuItem>
+          <MenuItem onClick={() => openMoveFolder(node.folder!)}>
+            <Move className="mr-2 h-4 w-4" />
+            Move to...
           </MenuItem>
           <MenuSeparator />
           <MenuItem
@@ -1345,6 +1397,96 @@ export function FileManager({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Move Folder Dialog */}
+      <Dialog open={moveFolderOpen} onOpenChange={(open) => {
+        setMoveFolderOpen(open)
+        if (!open) {
+          setMoveFolder(null)
+          setMoveFolderTargetId(null)
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Folder</DialogTitle>
+            <DialogDescription>
+              Select a destination for &quot;{moveFolder?.name}&quot;. You cannot move a folder into itself or into one of its subfolders.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Destination</Label>
+              <div className="border rounded-lg max-h-64 overflow-y-auto">
+                {/* Root option */}
+                <Button
+                  type="button"
+                  onClick={() => setMoveFolderTargetId(null)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                    moveFolderTargetId === null && "bg-primary/10"
+                  )}
+                >
+                  <Folder className="h-4 w-4 text-amber-500" />
+                  <span className="font-medium">Root (No folder)</span>
+                  {moveFolderTargetId === null && (
+                    <Check className="ml-auto h-4 w-4 text-primary" />
+                  )}
+                </Button>
+                {/* Folder list - exclude the folder being moved and its descendants */}
+                {moveFolder &&
+                  localFolders
+                    .filter(
+                      (f) =>
+                        f.id !== moveFolder.id &&
+                        !getDescendantIds(moveFolder.id, localFolders).has(f.id)
+                    )
+                    .map((folder) => {
+                      const isCurrentParent = moveFolder.parentId === folder.id
+                      return (
+                        <button
+                          key={folder.id}
+                          type="button"
+                          onClick={() => setMoveFolderTargetId(folder.id)}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                            moveFolderTargetId === folder.id && "bg-primary/10",
+                            isCurrentParent && "text-muted-foreground"
+                          )}
+                        >
+                          <Folder className="h-4 w-4 text-amber-500" />
+                          <span>{folder.name}</span>
+                          {isCurrentParent && (
+                            <span className="text-xs text-muted-foreground ml-1">(current)</span>
+                          )}
+                          {moveFolderTargetId === folder.id && (
+                            <Check className="ml-auto h-4 w-4 text-primary" />
+                          )}
+                        </button>
+                      )
+                    })}
+                {moveFolder &&
+                  localFolders.filter(
+                    (f) =>
+                      f.id !== moveFolder.id &&
+                      !getDescendantIds(moveFolder.id, localFolders).has(f.id)
+                  ).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No other folders available. You can move to Root above.
+                    </p>
+                  )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveFolderOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMoveFolder} disabled={isLoading}>
+              {isLoading ? "Moving..." : "Move Folder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Move File Dialog */}
       <Dialog open={moveFileOpen} onOpenChange={(open) => {
         setMoveFileOpen(open)
@@ -1385,7 +1527,7 @@ export function FileManager({
                   // Find the file being moved to check its current folder
                   const movingFile = localFiles.find(f => f.id === moveFileId)
                   const isCurrentFolder = movingFile?.folderId === folder.id
-                  
+
                   return (
                     <button
                       key={folder.id}

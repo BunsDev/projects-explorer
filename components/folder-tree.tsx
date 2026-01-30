@@ -18,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -30,8 +31,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Folder, FolderPlus, MoreVertical, Pencil, Trash2, ChevronRight } from "lucide-react"
-import { createFolderAction, renameFolderAction, deleteFolderAction } from "@/app/dashboard/actions"
+import { Folder, FolderPlus, MoreVertical, Pencil, Trash2, ChevronRight, Move, Check } from "lucide-react"
+import { createFolderAction, renameFolderAction, deleteFolderAction, moveFolderAction } from "@/app/dashboard/actions"
 import { cn } from "@/lib/utils"
 
 type FolderType = {
@@ -60,7 +61,9 @@ export function FolderTree({
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isRenameOpen, setIsRenameOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isMoveOpen, setIsMoveOpen] = useState(false)
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null)
+  const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [folderName, setFolderName] = useState("")
@@ -70,6 +73,15 @@ export function FolderTree({
     setFolderName("")
     setError(null)
     setCreateInFolder(null)
+    setMoveTargetFolderId(null)
+  }
+
+  // Get all descendant folder IDs (folders inside the given folder)
+  const getDescendantIds = (folderId: string, folderList: FolderType[]): Set<string> => {
+    const children = folderList.filter((f) => f.parentId === folderId)
+    const desc = new Set(children.map((c) => c.id))
+    children.forEach((c) => getDescendantIds(c.id, folderList).forEach((d) => desc.add(d)))
+    return desc
   }
 
   const handleCreate = async () => {
@@ -161,6 +173,37 @@ export function FolderTree({
     setIsDeleteOpen(true)
   }
 
+  const openMoveDialog = (folder: FolderType, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedFolder(folder)
+    setMoveTargetFolderId(folder.parentId)
+    setIsMoveOpen(true)
+  }
+
+  const handleMove = async () => {
+    if (!selectedFolder) return
+
+    setIsLoading(true)
+    setError(null)
+
+    const result = await moveFolderAction(selectedFolder.id, moveTargetFolderId)
+
+    if (result.success) {
+      onFoldersChange(
+        folders.map((f) =>
+          f.id === selectedFolder.id ? { ...f, parentId: moveTargetFolderId } : f
+        )
+      )
+      setIsMoveOpen(false)
+      setSelectedFolder(null)
+      resetForm()
+    } else {
+      setError(result.error || "Failed to move folder")
+    }
+
+    setIsLoading(false)
+  }
+
   const openCreateInFolder = (folderId: string | null, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setCreateInFolder(folderId)
@@ -213,6 +256,11 @@ export function FolderTree({
                 <Pencil className="mr-2 h-4 w-4" />
                 Rename
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => openMoveDialog(folder, e as unknown as React.MouseEvent)}>
+                <Move className="mr-2 h-4 w-4" />
+                Move to...
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={(e) => openDeleteDialog(folder, e as unknown as React.MouseEvent)}
@@ -314,6 +362,97 @@ export function FolderTree({
             </Button>
             <Button onClick={handleRename} disabled={isLoading || !folderName.trim()}>
               {isLoading ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Folder Dialog */}
+      <Dialog
+        open={isMoveOpen}
+        onOpenChange={(open) => {
+          setIsMoveOpen(open)
+          if (!open) {
+            setSelectedFolder(null)
+            resetForm()
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Folder</DialogTitle>
+            <DialogDescription>
+              Select a destination for &quot;{selectedFolder?.name}&quot;. You cannot move a folder into
+              itself or into one of its subfolders.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Destination</Label>
+              <div className="border rounded-lg max-h-64 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => setMoveTargetFolderId(null)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                    moveTargetFolderId === null && "bg-primary/10"
+                  )}
+                >
+                  <Folder className="h-4 w-4 text-amber-500" />
+                  <span className="font-medium">Root (No folder)</span>
+                  {moveTargetFolderId === null && <Check className="ml-auto h-4 w-4 text-primary" />}
+                </button>
+                {selectedFolder &&
+                  folders
+                    .filter(
+                      (f) =>
+                        f.id !== selectedFolder.id &&
+                        !getDescendantIds(selectedFolder.id, folders).has(f.id)
+                    )
+                    .map((folder) => {
+                      const isCurrentParent = selectedFolder.parentId === folder.id
+                      return (
+                        <button
+                          key={folder.id}
+                          type="button"
+                          onClick={() => setMoveTargetFolderId(folder.id)}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
+                            moveTargetFolderId === folder.id && "bg-primary/10",
+                            isCurrentParent && "text-muted-foreground"
+                          )}
+                        >
+                          <Folder className="h-4 w-4 text-amber-500" />
+                          <span>{folder.name}</span>
+                          {isCurrentParent && (
+                            <span className="text-xs text-muted-foreground ml-1">(current)</span>
+                          )}
+                          {moveTargetFolderId === folder.id && (
+                            <Check className="ml-auto h-4 w-4 text-primary" />
+                          )}
+                        </button>
+                      )
+                    })}
+                {selectedFolder &&
+                  folders.filter(
+                    (f) =>
+                      f.id !== selectedFolder.id &&
+                      !getDescendantIds(selectedFolder.id, folders).has(f.id)
+                  ).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No other folders available. You can move to Root above.
+                    </p>
+                  )}
+              </div>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMoveOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMove} disabled={isLoading}>
+              {isLoading ? "Moving..." : "Move Folder"}
             </Button>
           </DialogFooter>
         </DialogContent>
