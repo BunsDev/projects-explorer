@@ -29,6 +29,26 @@ Projects Explorer is a self-hosted file management system that lets you upload, 
 - **📱 Responsive Design** — Works seamlessly on desktop and mobile devices
 - **🌐 Deployed URL Tracking** — Link projects to their live deployments
 
+## Screenshots
+
+### Grid View
+
+Browse your files in a clean card-based layout with folder icons, file sizes, and download counts at a glance.
+
+![Grid View](https://raw.githubusercontent.com/BunsDev/projects-explorer/refs/heads/main/assets/grid-view.png)
+
+### Code View
+
+View source files directly in the browser with full syntax highlighting. Navigate through your project's folder structure and preview code without downloading.
+
+![Code View](https://raw.githubusercontent.com/BunsDev/projects-explorer/refs/heads/main/assets/code-view.png)
+
+### Live Preview
+
+Preview deployed web applications directly within the dashboard. Connect your GitHub repository and see your project running live alongside the code.
+
+![Live Preview](https://raw.githubusercontent.com/BunsDev/projects-explorer/refs/heads/main/assets/live-preview.png)
+
 ## Tech Stack
 
 | Technology                                                 | Purpose                         |
