@@ -587,7 +587,7 @@ export function ProjectDetailClient({
 
         {/* Defer Tabs (and Radix IDs) until after mount to avoid server/client hydration mismatch */}
         {mounted ? (
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "tree")} className="space-y-4">
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "tree")} className="space-y-0">
             <TabsList className="w-full sm:w-auto grid grid-cols-2">
               <TabsTrigger value="tree" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
                 <FolderTreeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
