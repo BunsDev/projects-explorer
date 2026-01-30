@@ -44,6 +44,7 @@ import {
 import {
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -67,7 +68,10 @@ import {
   Link2,
   ShieldCheck,
   Github,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { FileShareSettingsModal } from "@/components/share-settings"
 import { CodeBlock } from "@/components/code-block"
 import {
@@ -532,6 +536,9 @@ export function FileManager({
   githubBranch,
   onDataChange,
 }: FileManagerProps) {
+  // Responsive hook
+  const isMobile = useIsMobile()
+
   // State
   const [localFolders, setLocalFolders] = useState(folders)
   const [localFiles, setLocalFiles] = useState(files)
@@ -540,6 +547,7 @@ export function FileManager({
   const [previewFile, setPreviewFile] = useState<TreeFile | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [isMoving, setIsMoving] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Dialog states
   const [createFolderOpen, setCreateFolderOpen] = useState(false)
@@ -786,6 +794,13 @@ export function FileManager({
 
   // Build tree
   const tree = buildTree(localFolders, localFiles)
+
+  // On mobile, auto-collapse sidebar when a file is selected for preview
+  useEffect(() => {
+    if (isMobile && previewFile) {
+      setSidebarCollapsed(true)
+    }
+  }, [isMobile, previewFile])
 
   // Handlers
   const toggleFolder = useCallback((id: string) => {
@@ -1297,72 +1312,122 @@ export function FileManager({
 
       {/* Main content with resizable panels */}
       {previewFile ? (
-        <ResizablePanelGroup
-          key="with-preview"
-          direction="horizontal"
-          className="overflow-hidden"
-          style={{
-            height: "calc(100vh - 300px)",
-            minHeight: "400px",
-          }}
-          autoSaveId="file-manager-with-preview"
-        >
-          {/* Tree view panel */}
-          <ResizablePanel
-            id="file-tree"
-            order={1}
-            defaultSize={40}
-            minSize={20}
-            maxSize={75}
-            className="h-full"
+        sidebarCollapsed ? (
+          // Collapsed sidebar - show only preview with toggle button
+          <div
+            className="overflow-hidden relative"
+            style={{
+              height: "calc(100vh - 300px)",
+              minHeight: "400px",
+            }}
           >
-            <ScrollArea className="h-full">
-              {/* Root drop zone */}
-              <div
-                className={cn(
-                  "p-2 min-h-full",
-                  dragOverId === "root" && "bg-primary/10"
-                )}
-                onDragOver={(e) => handleDragOver(e, null, true)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, null)}
-              >
-                {tree.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                    <Folder className="h-12 w-12 mb-4" />
-                    <p>No files yet</p>
-                    <p className="text-sm">Upload files or create folders to get started</p>
-                  </div>
-                ) : (
-                  tree.map((node, idx) => renderNode(node, 0, idx === tree.length - 1, []))
-                )}
-              </div>
-            </ScrollArea>
-          </ResizablePanel>
-
-          {/* Resize handle */}
-          <ResizableHandle withHandle />
-
-          {/* Preview panel */}
-          <ResizablePanel
-            id="file-preview"
-            order={2}
-            defaultSize={60}
-            minSize={25}
-            maxSize={80}
-            className="h-full"
-          >
+            {/* Toggle button to expand sidebar */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarCollapsed(false)}
+              className="absolute top-2 left-2 z-10 h-8 w-8 bg-background/80 backdrop-blur-sm border shadow-sm hover:bg-muted"
+              title="Show file tree"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
             <FilePreview
               file={previewFile}
-              onClose={() => setPreviewFile(null)}
+              onClose={() => {
+                setPreviewFile(null)
+                // On mobile, also expand the sidebar when closing the preview
+                if (isMobile) {
+                  setSidebarCollapsed(false)
+                }
+              }}
               projectId={projectId}
               isGitHubProject={isGitHubProject}
               githubOwner={githubOwner}
               githubRepo={githubRepo}
               githubBranch={githubBranch}
             />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+        ) : (
+          // Expanded sidebar with resizable panels
+          <ResizablePanelGroup
+            key="with-preview"
+            direction="horizontal"
+            className="overflow-hidden"
+            style={{
+              height: "calc(100vh - 300px)",
+              minHeight: "400px",
+            }}
+            autoSaveId="file-manager-with-preview"
+          >
+            {/* Tree view panel */}
+            <ResizablePanel
+              id="file-tree"
+              order={1}
+              defaultSize={40}
+              minSize={20}
+              maxSize={75}
+              className="h-full relative"
+            >
+              {/* Toggle button to collapse sidebar (desktop only) */}
+              {!isMobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="absolute top-2 right-2 z-10 h-7 w-7 bg-background/80 backdrop-blur-sm hover:bg-muted"
+                  title="Hide file tree"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
+              )}
+              <ScrollArea className="h-full">
+                {/* Root drop zone */}
+                <div
+                  className={cn(
+                    "p-2 min-h-full",
+                    dragOverId === "root" && "bg-primary/10"
+                  )}
+                  onDragOver={(e) => handleDragOver(e, null, true)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, null)}
+                >
+                  {tree.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                      <Folder className="h-12 w-12 mb-4" />
+                      <p>No files yet</p>
+                      <p className="text-sm">Upload files or create folders to get started</p>
+                    </div>
+                  ) : (
+                    tree.map((node, idx) => renderNode(node, 0, idx === tree.length - 1, []))
+                  )}
+                </div>
+              </ScrollArea>
+            </ResizablePanel>
+
+            {/* Resize handle */}
+            <ResizableHandle withHandle />
+
+            {/* Preview panel */}
+            <ResizablePanel
+              id="file-preview"
+              order={2}
+              defaultSize={60}
+              minSize={25}
+              maxSize={80}
+              className="h-full"
+            >
+              <FilePreview
+                file={previewFile}
+                onClose={() => setPreviewFile(null)}
+                projectId={projectId}
+                isGitHubProject={isGitHubProject}
+                githubOwner={githubOwner}
+                githubRepo={githubRepo}
+                githubBranch={githubBranch}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )
       ) : (
         <div
           className="overflow-hidden"
