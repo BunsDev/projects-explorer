@@ -5,6 +5,7 @@ import { getCloudStorageConfig } from "@/lib/cloud/config"
 import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
 import { getDiskPressureSnapshot, rankEvictionCandidates } from "@/lib/cloud/server/disk-pressure"
 import {
+  extendJobLease,
   listEvictionCandidates,
   markCacheEntryEvicted,
   markJobFailed,
@@ -37,19 +38,21 @@ function isRetryableError(message: string) {
 }
 
 async function ensureChecksumMatch(expected: string | undefined | null, actual: string | undefined | null, phase: string) {
-  if (expected && expected !== actual) {
-    throw new Error(`${phase} checksum mismatch (expected ${expected}, got ${actual})`)
+  if (expected && expected !== actual) throw new Error(`${phase} checksum mismatch (expected ${expected}, got ${actual})`)
+}
+
+async function withLeaseHeartbeat(task: SyncTask, leaseOwner: string, fn: () => Promise<void>) {
+  const timer = setInterval(() => void extendJobLease(task.id, leaseOwner, 60_000), 20_000)
+  try {
+    await fn()
+  } finally {
+    clearInterval(timer)
   }
 }
 
 async function runUpload(task: SyncTask) {
-  const body = task.sourceUrl
-    ? await fetchBuffer(task.sourceUrl)
-    : task.localPath
-      ? await readFile(task.localPath)
-      : null
+  const body = task.sourceUrl ? await fetchBuffer(task.sourceUrl) : task.localPath ? await readFile(task.localPath) : null
   if (!body) throw new Error("Upload job has no sourceUrl or localPath")
-
   const checksumSha256 = task.checksumSha256 || checksum(body)
   await updateJobProgress(task.id, { bytesTransferred: 0, message: `Prepared upload payload (${body.byteLength} bytes)` })
 
@@ -59,30 +62,22 @@ async function runUpload(task: SyncTask) {
     return
   }
 
-  const stored = await provider.put({
-    key: task.remoteKey,
-    body,
-    checksumSha256,
-    multipart: body.byteLength >= 32 * 1024 * 1024,
-  })
+  const stored = await provider.put({ key: task.remoteKey, body, checksumSha256, multipart: body.byteLength >= 32 * 1024 * 1024 })
   await updateJobProgress(task.id, { bytesTransferred: stored.size, message: "Upload completed, verifying remote checksum" })
-
   const verified = await provider.head(task.remoteKey)
   await ensureChecksumMatch(checksumSha256, verified?.checksumSha256 || null, "Upload verification")
   await markJobSucceeded(task.id, { bytesTransferred: stored.size, checksumSha256, message: "Upload verified and stored" })
 
-  if (task.localPath) {
-    await upsertCacheEntry({
-      projectId: task.projectId,
-      fileId: task.fileId,
-      localPath: task.localPath,
-      remoteKey: task.remoteKey,
-      cacheState: "resident",
-      sizeBytes: stored.size,
-      checksumSha256,
-      lastSyncedAt: new Date(),
-    })
-  }
+  await upsertCacheEntry({
+    projectId: task.projectId,
+    fileId: task.fileId,
+    localPath: task.localPath || `${getCloudStorageConfig().cacheDir}/${task.remoteKey}`,
+    remoteKey: task.remoteKey,
+    cacheState: "resident",
+    sizeBytes: stored.size,
+    checksumSha256,
+    lastSyncedAt: new Date(),
+  })
 }
 
 async function runDownload(task: SyncTask) {
@@ -112,63 +107,43 @@ async function runEviction(task: SyncTask) {
   const candidates = await listEvictionCandidates()
   const targetBytes = Math.max(task.bytesTotal ?? 0, disk.suggestedEvictionBytes)
   const selected = rankEvictionCandidates(candidates.map((item) => ({ ...item, lastAccessedAt: item.lastAccessedAt ?? new Date(0), sizeBytes: item.sizeBytes ?? 0 })), targetBytes)
-  for (const item of selected) {
-    await rm(item.localPath, { force: true })
-  }
-  await markCacheEntryEvicted(selected.map((item) => item.id))
-  await markJobSucceeded(task.id, {
-    bytesTransferred: selected.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0),
-    message: `Evicted ${selected.length} cache item${selected.length === 1 ? "" : "s"}`,
-  })
+  for (const item of selected) await rm(item.localPath, { force: true })
+  await markCacheEntryEvicted(selected.map((item) => item.id), task.metadata?.safeMode ? "manual safe eviction" : "disk pressure")
+  await markJobSucceeded(task.id, { bytesTransferred: selected.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0), message: `Evicted ${selected.length} cache item${selected.length === 1 ? "" : "s"}` })
 }
 
 async function maybeQueueAutoEviction() {
   const config = getCloudStorageConfig()
   const disk = await getDiskPressureSnapshot(config.cacheDir, config.warningFreeBytes, config.criticalFreeBytes).catch(async () => getDiskPressureSnapshot(process.cwd(), config.warningFreeBytes, config.criticalFreeBytes))
   if (disk.pressureLevel !== "critical" || disk.suggestedEvictionBytes <= 0) return null
-
-  const task: SyncTask = {
-    id: "auto-evict",
-    type: "evict-cache",
-    remoteKey: "auto/eviction",
-    status: "running",
-    attempts: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    bytesTotal: disk.suggestedEvictionBytes,
-    bytesTransferred: 0,
-    history: [],
-  }
+  const task: SyncTask = { id: "auto-evict", type: "evict-cache", remoteKey: "auto/eviction", status: "running", attempts: 1, createdAt: new Date(), updatedAt: new Date(), bytesTotal: disk.suggestedEvictionBytes, bytesTransferred: 0, history: [], metadata: { safeMode: false } }
   await runEviction(task)
   return disk.suggestedEvictionBytes
 }
 
-async function executeTask(task: SyncTask) {
-  if (task.type === "upload") return runUpload(task)
-  if (task.type === "download") return runDownload(task)
-  if (task.type === "evict-cache" || task.type === "delete-local-cache") return runEviction(task)
-  throw new Error(`Unsupported task type: ${task.type}`)
+async function executeTask(task: SyncTask, leaseOwner: string) {
+  return withLeaseHeartbeat(task, leaseOwner, async () => {
+    if (task.type === "upload") return runUpload(task)
+    if (task.type === "download") return runDownload(task)
+    if (task.type === "evict-cache" || task.type === "delete-local-cache") return runEviction(task)
+    throw new Error(`Unsupported task type: ${task.type}`)
+  })
 }
 
-export async function processSyncQueue(options: { concurrency?: number } = {}) {
+export async function processSyncQueue(options: { concurrency?: number; leaseOwner?: string } = {}) {
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 2, 4))
+  const leaseOwner = options.leaseOwner || `worker-${process.pid}`
   let autoEvictedBytes = 0
-  try {
-    autoEvictedBytes = (await maybeQueueAutoEviction()) ?? 0
-  } catch {
-    autoEvictedBytes = 0
-  }
+  try { autoEvictedBytes = (await maybeQueueAutoEviction()) ?? 0 } catch { autoEvictedBytes = 0 }
 
-  const reserved = await reserveJobs(concurrency)
+  const reserved = await reserveJobs(concurrency, leaseOwner)
   const results = await Promise.allSettled(reserved.map(async (task) => {
     try {
-      await executeTask(task)
+      await executeTask(task, leaseOwner)
       return { id: task.id, ok: true as const }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown sync error"
-      const retryAt = isRetryableError(message) && task.attempts < (task.maxAttempts ?? 5)
-        ? new Date(Date.now() + retryDelayMs(task.attempts + 1))
-        : null
+      const retryAt = isRetryableError(message) && task.attempts < (task.maxAttempts ?? 5) ? new Date(Date.now() + retryDelayMs(task.attempts + 1)) : null
       await markJobFailed(task.id, message, retryAt)
       return { id: task.id, ok: false as const, error: message }
     }

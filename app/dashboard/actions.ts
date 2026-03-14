@@ -2714,7 +2714,8 @@ export async function syncGitHubRepoAction(
 
 import { getCloudStorageConfig, isCloudStorageConfigured } from "@/lib/cloud/config"
 import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
-import { cancelSyncJobs, createSyncJob, getProjectFilesForCloud, listEvictionCandidates, pauseSyncJobs, resumeSyncJobs, retrySyncJobs, setProjectCachePinned } from "@/lib/cloud/queue-store"
+import { cancelSyncJobs, createSyncJob, getProjectFilesForCloud, listEvictionCandidates, pauseSyncJobs, resumeSyncJobs, retrySyncJobs, resolveConflict, setFileCachePinned, setProjectCachePinned } from "@/lib/cloud/queue-store"
+import { getCloudWorkerRuntime } from "@/lib/cloud/runtime"
 import { processSyncQueue } from "@/lib/cloud/transfer-worker"
 
 export async function validateCloudCredentialsAction(): Promise<{ success: boolean; message: string }> {
@@ -2862,12 +2863,28 @@ export async function setProjectPinProtectionAction(projectId: string, pinned: b
   return { success: true, message: count > 0 ? `${pinned ? "Pinned" : "Unpinned"} ${count} cache entr${count === 1 ? "y" : "ies"}.` : "No cache entries existed yet for this project." }
 }
 
+export async function setFilePinProtectionAction(fileId: string, pinned: boolean, projectId?: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+  const count = await setFileCachePinned(fileId, pinned)
+  await revalidateCloudPaths(projectId)
+  return { success: true, message: count > 0 ? `${pinned ? "Pinned" : "Unpinned"} ${count} cache entr${count === 1 ? "y" : "ies"}.` : "No local cache entry exists yet for this file." }
+}
+
+export async function resolveCloudConflictAction(input: { projectId?: string; fileId?: string; remoteKey: string; resolution: "force-upload" | "force-restore" | "skip"; sourceUrl?: string | null; localPath?: string | null; bytesTotal?: number | null }) {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+  await resolveConflict(input)
+  await revalidateCloudPaths(input.projectId)
+  return { success: true, message: input.resolution === "skip" ? "Conflict skipped for now." : `Queued ${input.resolution === "force-upload" ? "upload" : "restore"} to resolve conflict.` }
+}
+
 export async function processSyncQueueAction(): Promise<{ success: boolean; message?: string; error?: string }> {
   const auth = await requireAuthAction()
   if (!auth.authorized) return { success: false, error: auth.error }
 
   try {
-    const result = await processSyncQueue({ concurrency: 2 })
+    const result = await getCloudWorkerRuntime().runNow()
     revalidatePath("/dashboard")
     return {
       success: true,

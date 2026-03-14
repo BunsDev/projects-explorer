@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { ProjectDetailClient } from "./project-detail-client"
 import { getProjectTreeAction } from "@/app/dashboard/actions"
+import { getProjectCloudSurface } from "@/lib/cloud/queue-store"
 
 export default async function ProjectPage({
   params,
@@ -53,6 +54,7 @@ export default async function ProjectPage({
 
   // Fetch tree data for GitHub-style file browser
   const treeData = await getProjectTreeAction(projectId)
+  const cloudSurface = await getProjectCloudSurface(projectId)
 
   return (
     <ProjectDetailClient
@@ -90,6 +92,8 @@ export default async function ProjectPage({
       }))}
       treeFolders={treeData.folders || []}
       treeFiles={treeData.files || []}
+      cloudCacheEntries={cloudSurface.cacheEntries}
+      cloudConflicts={cloudSurface.conflicts}
     />
   )
 }

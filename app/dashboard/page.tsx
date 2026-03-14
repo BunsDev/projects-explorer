@@ -6,10 +6,12 @@ import { ProjectList } from "@/components/project-list"
 import { CloudStatusPanel } from "@/components/cloud-status-panel"
 import { CloudSettingsCard } from "@/components/cloud-settings-card"
 import { CloudActivityList } from "@/components/cloud-activity-list"
+import { CloudObservabilityPanel } from "@/components/cloud-observability-panel"
 import { getCloudStorageConfig } from "@/lib/cloud/config"
 import { getDiskPressureSnapshot } from "@/lib/cloud/server/disk-pressure"
 import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
-import { getQueueSummary, getRecentActivity } from "@/lib/cloud/queue-store"
+import { getQueueObservability, getQueueSummary, getRecentActivity } from "@/lib/cloud/queue-store"
+import { getCloudWorkerRuntime } from "@/lib/cloud/runtime"
 import { getTraySyncSnapshot } from "@/lib/cloud/tray-state"
 
 export default async function DashboardPage() {
@@ -62,6 +64,7 @@ export default async function DashboardPage() {
   const totalDownloads = stats[0]?.total_downloads ?? 0
 
   const cloudConfig = getCloudStorageConfig()
+  getCloudWorkerRuntime().start()
   const cloudProvider = new S3CompatibleStorageProvider()
   const cloudHealth = await cloudProvider.getHealth()
   const diskSnapshot = await getDiskPressureSnapshot(
@@ -71,6 +74,7 @@ export default async function DashboardPage() {
   )
   const summary = await getQueueSummary()
   const activity = await getRecentActivity()
+  const observability = await getQueueObservability()
   const tray = getTraySyncSnapshot({ provider: cloudHealth, summary, disk: diskSnapshot })
 
   return (
@@ -85,6 +89,7 @@ export default async function DashboardPage() {
         <div className="mt-8 grid gap-6 xl:grid-cols-[2fr_1fr]">
           <div className="space-y-6">
             <CloudStatusPanel provider={cloudHealth} disk={diskSnapshot} summary={summary} tray={tray} />
+            <CloudObservabilityPanel data={observability} />
             <CloudActivityList items={activity} />
           </div>
           <CloudSettingsCard provider={cloudHealth} />
