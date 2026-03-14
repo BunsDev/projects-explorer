@@ -1,8 +1,9 @@
 import Link from "next/link"
-import { Cloud, Database, HardDriveDownload, Upload } from "lucide-react"
+import { Cloud, Database, HardDriveDownload, Upload, RefreshCw, AlertTriangle, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import type { CloudProviderHealth, DiskPressureSnapshot, SyncTask } from "@/lib/cloud/types"
+import { Badge } from "@/components/ui/badge"
+import type { CloudProviderHealth, CloudQueueSummary, DiskPressureSnapshot } from "@/lib/cloud/types"
 
 function formatBytes(bytes: number) {
   if (bytes <= 0) return "0 B"
@@ -19,25 +20,22 @@ function formatBytes(bytes: number) {
 export function CloudStatusPanel({
   provider,
   disk,
-  queuedTasks,
+  summary,
 }: {
   provider: CloudProviderHealth
   disk: DiskPressureSnapshot
-  queuedTasks: SyncTask[]
+  summary: CloudQueueSummary
 }) {
-  const uploadsQueued = queuedTasks.filter((task) => task.type === "upload" && task.status === "queued").length
-  const downloadsQueued = queuedTasks.filter((task) => task.type === "download" && task.status === "queued").length
-
   return (
     <Card>
       <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Cloud className="size-4 text-primary" />
-            Cloud Status
+            Cloud status
           </CardTitle>
           <CardDescription>
-            MVP scaffold for cloud-backed sync, cache management, and future desktop tray status.
+            Durable sync queue, worker pool, cache pressure signals, and desktop foundation status.
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
@@ -59,6 +57,7 @@ export function CloudStatusPanel({
             <p className="font-medium text-foreground">{provider.provider}</p>
             <p>{provider.configured ? `Bucket: ${provider.bucket}` : "Credentials not configured yet"}</p>
             <p>{provider.region ? `Region: ${provider.region}` : "Region missing"}</p>
+            {provider.configured ? <Badge variant="secondary" className="mt-2"><CheckCircle2 className="mr-1 size-3" />Ready</Badge> : <Badge variant="outline" className="mt-2">Env missing</Badge>}
           </div>
         </div>
 
@@ -71,18 +70,21 @@ export function CloudStatusPanel({
             <p className="font-medium capitalize text-foreground">{disk.pressureLevel}</p>
             <p>Free: {formatBytes(disk.freeBytes)} / {formatBytes(disk.totalBytes)}</p>
             <p>Suggested eviction: {formatBytes(disk.suggestedEvictionBytes)}</p>
+            {disk.pressureLevel !== "healthy" ? <Badge variant="outline" className="mt-2"><AlertTriangle className="mr-1 size-3" />Eviction recommended</Badge> : null}
           </div>
         </div>
 
         <div className="rounded-lg border p-4">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <Upload className="size-4 text-muted-foreground" />
+            <RefreshCw className="size-4 text-muted-foreground" />
             Sync queue
           </div>
           <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">{queuedTasks.length} task{queuedTasks.length === 1 ? "" : "s"}</p>
-            <p>{uploadsQueued} upload queued</p>
-            <p>{downloadsQueued} download queued</p>
+            <p className="font-medium text-foreground">{summary.queued + summary.running + summary.retrying} active task{summary.queued + summary.running + summary.retrying === 1 ? "" : "s"}</p>
+            <p>{summary.uploadsQueued} upload queued</p>
+            <p>{summary.downloadsQueued} download queued</p>
+            <p>{summary.running} running • {summary.retrying} retrying</p>
+            <p>{summary.failed} failed • {summary.succeeded} succeeded</p>
           </div>
         </div>
       </CardContent>

@@ -2710,3 +2710,115 @@ export async function syncGitHubRepoAction(
     return { success: false, error: "Failed to sync repository" }
   }
 }
+
+
+import { getCloudStorageConfig, isCloudStorageConfigured } from "@/lib/cloud/config"
+import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
+import { createSyncJob, getProjectFilesForCloud, listEvictionCandidates } from "@/lib/cloud/queue-store"
+import { processSyncQueue } from "@/lib/cloud/transfer-worker"
+
+export async function validateCloudCredentialsAction(): Promise<{ success: boolean; message: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, message: auth.error }
+
+  const config = getCloudStorageConfig()
+  if (!isCloudStorageConfigured(config)) {
+    return { success: false, message: "Cloud env vars are incomplete. Set bucket, region, access key, and secret." }
+  }
+
+  try {
+    const provider = new S3CompatibleStorageProvider()
+    await provider.list("")
+    return { success: true, message: "Cloud credentials validated against the configured bucket." }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Credential validation failed" }
+  }
+}
+
+function buildRemoteKey(projectName: string | null | undefined, filename: string, fileId: string) {
+  const slug = (projectName || "project").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project"
+  return `${slug}/${fileId}-${filename}`
+}
+
+export async function enqueueProjectUploadSyncAction(projectId: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const projectFiles = await getProjectFilesForCloud(projectId)
+  if (projectFiles.length === 0) return { success: false, error: "This project has no files to sync." }
+
+  for (const file of projectFiles) {
+    await createSyncJob({
+      type: "upload",
+      projectId,
+      fileId: file.id,
+      sourceUrl: file.blobUrl,
+      remoteKey: buildRemoteKey(file.projectName, file.originalFilename, file.id),
+      bytesTotal: Number(file.size),
+    })
+  }
+
+  revalidatePath("/dashboard")
+  revalidatePath(`/dashboard/projects/${projectId}`)
+  return { success: true, message: `Queued ${projectFiles.length} upload job${projectFiles.length === 1 ? "" : "s"}.` }
+}
+
+export async function enqueueProjectRestoreAction(projectId: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const projectFiles = await getProjectFilesForCloud(projectId)
+  if (projectFiles.length === 0) return { success: false, error: "This project has no files to restore." }
+
+  const config = getCloudStorageConfig()
+  for (const file of projectFiles) {
+    const remoteKey = buildRemoteKey(file.projectName, file.originalFilename, file.id)
+    await createSyncJob({
+      type: "download",
+      projectId,
+      fileId: file.id,
+      remoteKey,
+      localPath: `${config.cacheDir}/${remoteKey}`,
+      bytesTotal: Number(file.size),
+    })
+  }
+
+  revalidatePath("/dashboard")
+  revalidatePath(`/dashboard/projects/${projectId}`)
+  return { success: true, message: `Queued ${projectFiles.length} restore job${projectFiles.length === 1 ? "" : "s"} into the local cache.` }
+}
+
+export async function queueEvictionAction(projectId?: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const candidates = await listEvictionCandidates(100)
+  const scoped = projectId ? candidates.filter((item) => item.projectId === projectId) : candidates
+  if (scoped.length === 0) return { success: false, error: "No safe eviction candidates are available yet." }
+
+  const bytes = scoped.reduce((sum, item) => sum + Number(item.sizeBytes ?? 0), 0)
+  await createSyncJob({
+    type: "evict-cache",
+    projectId: projectId ?? null,
+    remoteKey: projectId ? `project/${projectId}/eviction` : "global/eviction",
+    bytesTotal: bytes,
+    metadata: { safeMode: true },
+  })
+
+  revalidatePath("/dashboard")
+  if (projectId) revalidatePath(`/dashboard/projects/${projectId}`)
+  return { success: true, message: `Queued safe eviction for ${scoped.length} cache entr${scoped.length === 1 ? "y" : "ies"}.` }
+}
+
+export async function processSyncQueueAction(): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  try {
+    const result = await processSyncQueue({ concurrency: 2 })
+    revalidatePath("/dashboard")
+    return { success: true, message: `Worker processed ${result.picked} job(s): ${result.succeeded} succeeded, ${result.failed} scheduled for retry/failed.` }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Queue processing failed" }
+  }
+}

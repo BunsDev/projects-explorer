@@ -4,15 +4,16 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { StatsCards } from "@/components/stats-cards"
 import { ProjectList } from "@/components/project-list"
 import { CloudStatusPanel } from "@/components/cloud-status-panel"
-import { getCloudStorageConfig, getCloudProviderHealth } from "@/lib/cloud/config"
+import { CloudSettingsCard } from "@/components/cloud-settings-card"
+import { CloudActivityList } from "@/components/cloud-activity-list"
+import { getCloudStorageConfig } from "@/lib/cloud/config"
 import { getDiskPressureSnapshot } from "@/lib/cloud/server/disk-pressure"
-import { CloudSyncService } from "@/lib/cloud/sync-service"
 import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
+import { getQueueSummary, getRecentActivity } from "@/lib/cloud/queue-store"
 
 export default async function DashboardPage() {
   await requireAuth()
 
-  // Fetch projects with file counts and category info
   const projects = await sql`
     SELECT 
       p.id,
@@ -33,7 +34,6 @@ export default async function DashboardPage() {
     ORDER BY p.created_at DESC
   `
 
-  // Fetch categories
   const categories = await sql`
     SELECT 
       c.id,
@@ -48,7 +48,6 @@ export default async function DashboardPage() {
     ORDER BY c.name ASC
   `
 
-  // Overall stats
   const stats = await sql`
     SELECT 
       COUNT(*)::int as total_files,
@@ -69,8 +68,8 @@ export default async function DashboardPage() {
     cloudConfig.warningFreeBytes,
     cloudConfig.criticalFreeBytes,
   )
-  const syncService = new CloudSyncService(cloudProvider)
-  const queuedTasks = syncService.listTasks()
+  const summary = await getQueueSummary()
+  const activity = await getRecentActivity()
 
   return (
     <div className="min-h-screen max-w-screen-2xl w-full mx-auto px-4 sm:px-6 pb-4 sm:pb-8">
@@ -81,12 +80,12 @@ export default async function DashboardPage() {
           totalSize={totalSize}
           totalDownloads={totalDownloads}
         />
-        <div className="mt-8">
-          <CloudStatusPanel
-            provider={cloudHealth}
-            disk={diskSnapshot}
-            queuedTasks={queuedTasks}
-          />
+        <div className="mt-8 grid gap-6 xl:grid-cols-[2fr_1fr]">
+          <div className="space-y-6">
+            <CloudStatusPanel provider={cloudHealth} disk={diskSnapshot} summary={summary} />
+            <CloudActivityList items={activity} />
+          </div>
+          <CloudSettingsCard provider={cloudHealth} />
         </div>
         <div className="mt-8">
           <ProjectList

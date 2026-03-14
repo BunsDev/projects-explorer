@@ -219,6 +219,58 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DE
 -- ============================================================
 -- Your database is now ready. Next steps:
 -- 1. Set your environment variables (DATABASE_URL, ADMIN_PASSWORD, BLOB_READ_WRITE_TOKEN)
--- 2. Deploy to Vercel or run locally with `bun dev`
+-- 2. Deploy to Vercel or run locally with `pnpm dev`
 -- 3. Login at /login with your ADMIN_PASSWORD
 -- ============================================================
+
+
+-- Cloud sync durable queue
+CREATE TABLE IF NOT EXISTS cloud_sync_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
+  file_id uuid REFERENCES files(id) ON DELETE SET NULL,
+  type varchar(32) NOT NULL,
+  status varchar(32) NOT NULL DEFAULT 'queued',
+  local_path text,
+  remote_key text NOT NULL,
+  source_url text,
+  checksum_sha256 varchar(64),
+  bytes_total bigint,
+  bytes_transferred bigint NOT NULL DEFAULT 0,
+  attempts integer NOT NULL DEFAULT 0,
+  max_attempts integer NOT NULL DEFAULT 5,
+  next_retry_at timestamptz,
+  last_started_at timestamptz,
+  completed_at timestamptz,
+  error_message text,
+  metadata_json text,
+  created_at timestamptz DEFAULT NOW(),
+  updated_at timestamptz DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_jobs_status_next_retry ON cloud_sync_jobs(status, next_retry_at);
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_jobs_project_id ON cloud_sync_jobs(project_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_jobs_file_id ON cloud_sync_jobs(file_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_jobs_created_at ON cloud_sync_jobs(created_at);
+
+-- Cloud cache residency / eviction bookkeeping
+CREATE TABLE IF NOT EXISTS cloud_cache_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
+  file_id uuid REFERENCES files(id) ON DELETE SET NULL,
+  local_path text NOT NULL,
+  remote_key text NOT NULL,
+  cache_state varchar(24) NOT NULL DEFAULT 'resident',
+  size_bytes bigint NOT NULL DEFAULT 0,
+  checksum_sha256 varchar(64),
+  pinned boolean NOT NULL DEFAULT false,
+  last_accessed_at timestamptz DEFAULT NOW(),
+  last_synced_at timestamptz,
+  created_at timestamptz DEFAULT NOW(),
+  updated_at timestamptz DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cloud_cache_entries_file_id ON cloud_cache_entries(file_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_cache_entries_project_id ON cloud_cache_entries(project_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_cache_entries_cache_state ON cloud_cache_entries(cache_state);
+CREATE INDEX IF NOT EXISTS idx_cloud_cache_entries_last_accessed_at ON cloud_cache_entries(last_accessed_at);

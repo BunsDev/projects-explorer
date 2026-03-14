@@ -1,13 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
-import { FolderUp, CloudUpload, ArrowDownToLine } from "lucide-react"
+import { FolderUp, CloudUpload, ArrowDownToLine, Loader2, RefreshCw, HardDriveDownload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { enqueueProjectUploadSyncAction, enqueueProjectRestoreAction, processSyncQueueAction, queueEvictionAction } from "@/app/dashboard/actions"
 
 export function CloudProjectActions({ projectId, projectName }: { projectId: string; projectName: string }) {
   const [message, setMessage] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  const run = (task: () => Promise<{ success: boolean; message?: string; error?: string }>) => {
+    startTransition(async () => {
+      const result = await task()
+      setMessage(result.message || result.error || "Done")
+    })
+  }
 
   return (
     <Card className="mb-4">
@@ -17,10 +26,10 @@ export function CloudProjectActions({ projectId, projectName }: { projectId: str
           Cloud project actions
         </CardTitle>
         <CardDescription>
-          Placeholder controls for the upcoming Tauri desktop + tray flow.
+          Queue real transfer jobs, restore cache locally, and kick the worker pool for this project.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
           <Button size="sm" asChild>
             <Link href={`/dashboard/upload?project=${projectId}`}>
@@ -28,16 +37,24 @@ export function CloudProjectActions({ projectId, projectName }: { projectId: str
               Upload folder/project
             </Link>
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setMessage(`Restore queue scaffold is ready for ${projectName}. Phase 2 should connect this button to the desktop sync worker.`)}
-          >
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => enqueueProjectUploadSyncAction(projectId))}>
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4" />}
+            Queue cloud upload
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => enqueueProjectRestoreAction(projectId))}>
             <ArrowDownToLine className="size-4" />
             Queue restore
           </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => processSyncQueueAction())}>
+            <RefreshCw className="size-4" />
+            Run worker now
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => queueEvictionAction(projectId))}>
+            <HardDriveDownload className="size-4" />
+            Safe cache eviction
+          </Button>
         </div>
-        {message && <p className="text-sm text-muted-foreground sm:max-w-md">{message}</p>}
+        {message && <p className="text-sm text-muted-foreground sm:max-w-2xl">{projectName}: {message}</p>}
       </CardContent>
     </Card>
   )

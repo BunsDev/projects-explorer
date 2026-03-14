@@ -87,7 +87,18 @@ export default function SetupPage() {
               </p>
             </div>
 
+            <div className="space-y-6">
             <GlobalShareSettingsCard />
+            <Card>
+              <CardHeader>
+                <CardTitle>Desktop / tray foundation</CardTitle>
+                <CardDescription>No Tauri shell is present in this repo yet. Phase 2 adds docs-first scaffolding and leaves explicit TODOs for the native shell.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Add a future <code className="rounded bg-muted px-1 py-0.5">src-tauri/</code> app to expose tray quick actions: open app, trigger sync, and show worker status.
+              </CardContent>
+            </Card>
+          </div>
           </TabsContent>
 
           <TabsContent value="setup">
@@ -434,10 +445,10 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."`}
                     Local Development
                   </h4>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Run locally with Bun or npm
+                    Run locally with pnpm or npm
                   </p>
                   <div className="bg-card rounded p-2 font-mono text-xs text-green-400">
-                    bun install && bun dev
+                    pnpm install && pnpm dev
                   </div>
                 </div>
               </div>

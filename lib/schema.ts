@@ -268,6 +268,89 @@ export const auditLogs = pgTable(
 )
 
 // ============================================================
+// Cloud Sync Queue Tables
+// ============================================================
+export const cloudSyncJobs = pgTable(
+  "cloud_sync_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id").references(() => files.id, { onDelete: "set null" }),
+    type: varchar("type", { length: 32 }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("queued"),
+    localPath: text("local_path"),
+    remoteKey: text("remote_key").notNull(),
+    sourceUrl: text("source_url"),
+    checksumSha256: varchar("checksum_sha256", { length: 64 }),
+    bytesTotal: bigint("bytes_total", { mode: "number" }),
+    bytesTransferred: bigint("bytes_transferred", { mode: "number" }).notNull().default(0),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(5),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    lastStartedAt: timestamp("last_started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    metadataJson: text("metadata_json"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    statusNextRetryIdx: index("idx_cloud_sync_jobs_status_next_retry").on(table.status, table.nextRetryAt),
+    projectIdIdx: index("idx_cloud_sync_jobs_project_id").on(table.projectId),
+    fileIdIdx: index("idx_cloud_sync_jobs_file_id").on(table.fileId),
+    createdAtIdx: index("idx_cloud_sync_jobs_created_at").on(table.createdAt),
+  })
+)
+
+export const cloudCacheEntries = pgTable(
+  "cloud_cache_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id").references(() => files.id, { onDelete: "set null" }),
+    localPath: text("local_path").notNull(),
+    remoteKey: text("remote_key").notNull(),
+    cacheState: varchar("cache_state", { length: 24 }).notNull().default("resident"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull().default(0),
+    checksumSha256: varchar("checksum_sha256", { length: 64 }),
+    pinned: boolean("pinned").notNull().default(false),
+    lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }).defaultNow(),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    fileIdIdx: index("idx_cloud_cache_entries_file_id").on(table.fileId),
+    projectIdIdx: index("idx_cloud_cache_entries_project_id").on(table.projectId),
+    cacheStateIdx: index("idx_cloud_cache_entries_cache_state").on(table.cacheState),
+    lastAccessedIdx: index("idx_cloud_cache_entries_last_accessed_at").on(table.lastAccessedAt),
+  })
+)
+
+export const cloudSyncJobsRelations = relations(cloudSyncJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [cloudSyncJobs.projectId],
+    references: [projects.id],
+  }),
+  file: one(files, {
+    fields: [cloudSyncJobs.fileId],
+    references: [files.id],
+  }),
+}))
+
+export const cloudCacheEntriesRelations = relations(cloudCacheEntries, ({ one }) => ({
+  project: one(projects, {
+    fields: [cloudCacheEntries.projectId],
+    references: [projects.id],
+  }),
+  file: one(files, {
+    fields: [cloudCacheEntries.fileId],
+    references: [files.id],
+  }),
+}))
+
+
+// ============================================================
 // Type Exports
 // ============================================================
 export type ShareSetting = typeof shareSettings.$inferSelect
@@ -296,3 +379,9 @@ export type NewAuthLog = typeof authLogs.$inferInsert
 
 export type AuditLog = typeof auditLogs.$inferSelect
 export type NewAuditLog = typeof auditLogs.$inferInsert
+
+export type CloudSyncJob = typeof cloudSyncJobs.$inferSelect
+export type NewCloudSyncJob = typeof cloudSyncJobs.$inferInsert
+
+export type CloudCacheEntry = typeof cloudCacheEntries.$inferSelect
+export type NewCloudCacheEntry = typeof cloudCacheEntries.$inferInsert

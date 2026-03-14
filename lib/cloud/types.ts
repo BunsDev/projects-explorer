@@ -33,22 +33,26 @@ export type CloudProviderHealth = {
 }
 
 export type SyncTaskType = "upload" | "download" | "delete-local-cache" | "evict-cache"
-export type SyncTaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled"
+export type SyncTaskStatus = "queued" | "running" | "succeeded" | "failed" | "retrying" | "cancelled"
 
 export type SyncTask = {
   id: string
   type: SyncTaskType
-  localPath: string
+  localPath?: string | null
   remoteKey: string
   status: SyncTaskStatus
-  checksumSha256?: string
-  bytesTotal?: number
-  bytesTransferred?: number
+  checksumSha256?: string | null
+  bytesTotal?: number | null
+  bytesTransferred?: number | null
   attempts: number
+  maxAttempts?: number
   createdAt: Date
   updatedAt: Date
-  error?: string
-  projectId?: string
+  nextRetryAt?: Date | null
+  error?: string | null
+  projectId?: string | null
+  fileId?: string | null
+  sourceUrl?: string | null
 }
 
 export type DiskPressureSnapshot = {
@@ -58,4 +62,24 @@ export type DiskPressureSnapshot = {
   freeRatio: number
   pressureLevel: "healthy" | "warning" | "critical"
   suggestedEvictionBytes: number
+}
+
+export type CloudRecentActivity = {
+  id: string
+  title: string
+  detail: string
+  status: SyncTaskStatus
+  createdAt: Date
+  updatedAt: Date
+  projectName?: string | null
+}
+
+export type CloudQueueSummary = {
+  queued: number
+  running: number
+  retrying: number
+  succeeded: number
+  failed: number
+  uploadsQueued: number
+  downloadsQueued: number
 }
