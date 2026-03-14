@@ -33,6 +33,7 @@ import { Upload, FolderTree as FolderTreeIcon, LayoutGrid, Globe, ExternalLink, 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { getFilesAction, updateProjectDeployedUrlAction, fetchGitHubTreeAction, saveGitHubSnapshotAction, syncGitHubRepoAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree"
+import { CloudProjectActions } from "@/components/cloud-project-actions"
 
 type Project = {
   id: string
@@ -495,6 +496,8 @@ export function ProjectDetailClient({
             )}
           </div>
         </div>
+
+        <CloudProjectActions projectId={project.id} projectName={project.name} />
 
         {/* GitHub Project Info Banner */}
         {isGitHubProject && (

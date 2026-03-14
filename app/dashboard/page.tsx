@@ -3,6 +3,11 @@ import { sql } from "@/lib/db"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { StatsCards } from "@/components/stats-cards"
 import { ProjectList } from "@/components/project-list"
+import { CloudStatusPanel } from "@/components/cloud-status-panel"
+import { getCloudStorageConfig, getCloudProviderHealth } from "@/lib/cloud/config"
+import { getDiskPressureSnapshot } from "@/lib/cloud/server/disk-pressure"
+import { CloudSyncService } from "@/lib/cloud/sync-service"
+import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
 
 export default async function DashboardPage() {
   await requireAuth()
@@ -56,6 +61,17 @@ export default async function DashboardPage() {
   const totalSize = Number(stats[0]?.total_size ?? 0)
   const totalDownloads = stats[0]?.total_downloads ?? 0
 
+  const cloudConfig = getCloudStorageConfig()
+  const cloudProvider = new S3CompatibleStorageProvider()
+  const cloudHealth = await cloudProvider.getHealth()
+  const diskSnapshot = await getDiskPressureSnapshot(
+    process.cwd(),
+    cloudConfig.warningFreeBytes,
+    cloudConfig.criticalFreeBytes,
+  )
+  const syncService = new CloudSyncService(cloudProvider)
+  const queuedTasks = syncService.listTasks()
+
   return (
     <div className="min-h-screen max-w-screen-2xl w-full mx-auto px-4 sm:px-6 pb-4 sm:pb-8">
       <DashboardHeader title="Dashboard" />
@@ -65,6 +81,13 @@ export default async function DashboardPage() {
           totalSize={totalSize}
           totalDownloads={totalDownloads}
         />
+        <div className="mt-8">
+          <CloudStatusPanel
+            provider={cloudHealth}
+            disk={diskSnapshot}
+            queuedTasks={queuedTasks}
+          />
+        </div>
         <div className="mt-8">
           <ProjectList
             initialProjects={projects.map((p) => ({

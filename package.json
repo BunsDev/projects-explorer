@@ -21,6 +21,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -29,6 +30,7 @@
     "setup": "bun run db:push"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.936.0",
     "@hookform/resolvers": "^3.10.0",
     "@neondatabase/serverless": "1.0.2",
     "@radix-ui/react-accordion": "1.2.2",
