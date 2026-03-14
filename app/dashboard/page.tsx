@@ -10,6 +10,7 @@ import { getCloudStorageConfig } from "@/lib/cloud/config"
 import { getDiskPressureSnapshot } from "@/lib/cloud/server/disk-pressure"
 import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
 import { getQueueSummary, getRecentActivity } from "@/lib/cloud/queue-store"
+import { getTraySyncSnapshot } from "@/lib/cloud/tray-state"
 
 export default async function DashboardPage() {
   await requireAuth()
@@ -70,6 +71,7 @@ export default async function DashboardPage() {
   )
   const summary = await getQueueSummary()
   const activity = await getRecentActivity()
+  const tray = getTraySyncSnapshot({ provider: cloudHealth, summary, disk: diskSnapshot })
 
   return (
     <div className="min-h-screen max-w-screen-2xl w-full mx-auto px-4 sm:px-6 pb-4 sm:pb-8">
@@ -82,7 +84,7 @@ export default async function DashboardPage() {
         />
         <div className="mt-8 grid gap-6 xl:grid-cols-[2fr_1fr]">
           <div className="space-y-6">
-            <CloudStatusPanel provider={cloudHealth} disk={diskSnapshot} summary={summary} />
+            <CloudStatusPanel provider={cloudHealth} disk={diskSnapshot} summary={summary} tray={tray} />
             <CloudActivityList items={activity} />
           </div>
           <CloudSettingsCard provider={cloudHealth} />

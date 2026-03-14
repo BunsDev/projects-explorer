@@ -1,6 +1,7 @@
 {
   "name": "projects-explorer",
   "version": "0.2.0",
+  "packageManager": "pnpm@9.15.0",
   "private": true,
   "description": "Interface for viewing and storing projects that can be shared and downloaded. Since you own the storage, you own the files and cannot be rugged by external parties.",
   "author": "Val Alexander",
@@ -27,10 +28,11 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "setup": "bun run db:push"
+    "setup": "pnpm run db:push"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.936.0",
+    "@aws-sdk/lib-storage": "^3.1009.0",
     "@hookform/resolvers": "^3.10.0",
     "@neondatabase/serverless": "1.0.2",
     "@radix-ui/react-accordion": "1.2.2",

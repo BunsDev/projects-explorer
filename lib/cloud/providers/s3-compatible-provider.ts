@@ -1,9 +1,13 @@
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { Readable } from "node:stream"
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3"
+import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3"
+import { Upload } from "@aws-sdk/lib-storage"
 import { getCloudProviderHealth, getCloudStorageConfig } from "@/lib/cloud/config"
-import type { CloudDownloadResult, CloudPutInput, CloudStorageObject } from "@/lib/cloud/types"
+import type { CloudDownloadResult, CloudProviderProbe, CloudPutInput, CloudStorageObject } from "@/lib/cloud/types"
 import type { StorageProvider } from "@/lib/cloud/providers/storage-provider"
+
+const MULTIPART_THRESHOLD_BYTES = 32 * 1024 * 1024
+const DEFAULT_PART_SIZE_BYTES = 8 * 1024 * 1024
 
 function asBuffer(body: CloudPutInput["body"]): Buffer {
   if (typeof body === "string") return Buffer.from(body)
@@ -63,6 +67,46 @@ export class S3CompatibleStorageProvider implements StorageProvider {
     return getCloudProviderHealth(this.config)
   }
 
+  async probe(): Promise<CloudProviderProbe> {
+    if (!this.config.endpoint || !this.config.bucket || !this.config.region || !this.config.accessKeyId || !this.config.secretAccessKey) {
+      return {
+        success: false,
+        message: "Cloud env vars are incomplete. Set endpoint, bucket, region, access key, and secret.",
+        bucket: this.config.bucket,
+        endpoint: this.config.endpoint,
+        writable: false,
+      }
+    }
+
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.requireBucket() }))
+      const key = `${this.resolveKey("healthchecks")}/${randomUUID()}.txt`
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.requireBucket(),
+        Key: key,
+        Body: Buffer.from("projects-explorer-healthcheck"),
+        Metadata: { createdby: "projects-explorer-phase3" },
+      }))
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.requireBucket(), Key: key }))
+
+      return {
+        success: true,
+        message: "Connection succeeded, bucket is reachable, and a write/delete probe completed.",
+        bucket: this.config.bucket,
+        endpoint: this.config.endpoint,
+        writable: true,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Cloud probe failed",
+        bucket: this.config.bucket,
+        endpoint: this.config.endpoint,
+        writable: false,
+      }
+    }
+  }
+
   async head(key: string): Promise<CloudStorageObject | null> {
     try {
       const result = await this.client.send(
@@ -89,19 +133,38 @@ export class S3CompatibleStorageProvider implements StorageProvider {
   async put(input: CloudPutInput): Promise<CloudStorageObject> {
     const body = asBuffer(input.body)
     const checksumSha256 = input.checksumSha256 ?? createHash("sha256").update(body).digest("hex")
+    const metadata = {
+      ...input.metadata,
+      checksumsha256: checksumSha256,
+      multipart: String(Boolean(input.multipart || body.byteLength >= MULTIPART_THRESHOLD_BYTES)),
+    }
 
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.requireBucket(),
-        Key: this.resolveKey(input.key),
-        Body: body,
-        ContentType: input.contentType,
-        Metadata: {
-          ...input.metadata,
-          checksumsha256: checksumSha256,
+    if (input.multipart || body.byteLength >= MULTIPART_THRESHOLD_BYTES) {
+      const upload = new Upload({
+        client: this.client,
+        params: {
+          Bucket: this.requireBucket(),
+          Key: this.resolveKey(input.key),
+          Body: body,
+          ContentType: input.contentType,
+          Metadata: metadata,
         },
-      }),
-    )
+        partSize: Math.max(input.partSizeBytes ?? DEFAULT_PART_SIZE_BYTES, 5 * 1024 * 1024),
+        queueSize: 3,
+        leavePartsOnError: false,
+      })
+      await upload.done()
+    } else {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.requireBucket(),
+          Key: this.resolveKey(input.key),
+          Body: body,
+          ContentType: input.contentType,
+          Metadata: metadata,
+        }),
+      )
+    }
 
     return {
       key: input.key,

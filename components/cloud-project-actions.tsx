@@ -2,10 +2,20 @@
 
 import { useState, useTransition } from "react"
 import Link from "next/link"
-import { FolderUp, CloudUpload, ArrowDownToLine, Loader2, RefreshCw, HardDriveDownload } from "lucide-react"
+import { FolderUp, CloudUpload, ArrowDownToLine, Loader2, RefreshCw, HardDriveDownload, PauseCircle, PlayCircle, Ban, RotateCcw, Pin, PinOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { enqueueProjectUploadSyncAction, enqueueProjectRestoreAction, processSyncQueueAction, queueEvictionAction } from "@/app/dashboard/actions"
+import {
+  cancelSyncQueueAction,
+  enqueueProjectRestoreAction,
+  enqueueProjectUploadSyncAction,
+  pauseSyncQueueAction,
+  processSyncQueueAction,
+  queueEvictionAction,
+  resumeSyncQueueAction,
+  retrySyncQueueAction,
+  setProjectPinProtectionAction,
+} from "@/app/dashboard/actions"
 
 export function CloudProjectActions({ projectId, projectName }: { projectId: string; projectName: string }) {
   const [message, setMessage] = useState<string | null>(null)
@@ -26,7 +36,7 @@ export function CloudProjectActions({ projectId, projectName }: { projectId: str
           Cloud project actions
         </CardTitle>
         <CardDescription>
-          Queue real transfer jobs, restore cache locally, and kick the worker pool for this project.
+          Queue transfers, control the durable sync worker, protect cache entries from eviction, and recover failed runs for this project.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -49,9 +59,33 @@ export function CloudProjectActions({ projectId, projectName }: { projectId: str
             <RefreshCw className="size-4" />
             Run worker now
           </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => pauseSyncQueueAction(projectId))}>
+            <PauseCircle className="size-4" />
+            Pause sync
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => resumeSyncQueueAction(projectId))}>
+            <PlayCircle className="size-4" />
+            Resume sync
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => cancelSyncQueueAction(projectId))}>
+            <Ban className="size-4" />
+            Cancel queued
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => retrySyncQueueAction(projectId))}>
+            <RotateCcw className="size-4" />
+            Retry failed
+          </Button>
           <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => queueEvictionAction(projectId))}>
             <HardDriveDownload className="size-4" />
             Safe cache eviction
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => setProjectPinProtectionAction(projectId, true))}>
+            <Pin className="size-4" />
+            Protect cache
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => setProjectPinProtectionAction(projectId, false))}>
+            <PinOff className="size-4" />
+            Remove protection
           </Button>
         </div>
         {message && <p className="text-sm text-muted-foreground sm:max-w-2xl">{projectName}: {message}</p>}

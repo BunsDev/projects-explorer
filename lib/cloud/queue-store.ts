@@ -1,10 +1,48 @@
 import { and, asc, desc, eq, inArray, lte, or, sql } from "drizzle-orm"
 import { db, cloudSyncJobs, cloudCacheEntries, files, projects } from "@/lib/db"
-import type { CloudRecentActivity, CloudQueueSummary, SyncTask, SyncTaskStatus, SyncTaskType } from "@/lib/cloud/types"
+import type {
+  CloudRecentActivity,
+  CloudQueueSummary,
+  SyncTask,
+  SyncTaskEvent,
+  SyncTaskStatus,
+  SyncTaskType,
+} from "@/lib/cloud/types"
 
 const RETRYABLE: SyncTaskStatus[] = ["queued", "retrying"]
 
+function parseMetadata(metadataJson: string | null): Record<string, unknown> | null {
+  if (!metadataJson) return null
+  try {
+    return JSON.parse(metadataJson) as Record<string, unknown>
+  } catch {
+    return { raw: metadataJson }
+  }
+}
+
+function getHistory(metadata: Record<string, unknown> | null): SyncTaskEvent[] {
+  const history = metadata?.history
+  return Array.isArray(history) ? history.filter(Boolean) as SyncTaskEvent[] : []
+}
+
+function setHistory(metadata: Record<string, unknown> | null, history: SyncTaskEvent[]) {
+  return {
+    ...(metadata ?? {}),
+    history: history.slice(-25),
+  }
+}
+
+function createEvent(status: SyncTaskEvent["status"], message: string, extra: Partial<SyncTaskEvent> = {}): SyncTaskEvent {
+  return {
+    at: new Date().toISOString(),
+    status,
+    message,
+    ...extra,
+  }
+}
+
 function mapJob(row: typeof cloudSyncJobs.$inferSelect): SyncTask {
+  const metadata = parseMetadata(row.metadataJson)
   return {
     id: row.id,
     type: row.type as SyncTaskType,
@@ -23,7 +61,22 @@ function mapJob(row: typeof cloudSyncJobs.$inferSelect): SyncTask {
     projectId: row.projectId,
     fileId: row.fileId,
     sourceUrl: row.sourceUrl,
+    metadata,
+    history: getHistory(metadata),
+    lastRunMs: typeof metadata?.lastRunMs === "number" ? metadata.lastRunMs : null,
   }
+}
+
+async function patchJob(jobId: string, mutate: (row: typeof cloudSyncJobs.$inferSelect, metadata: Record<string, unknown> | null) => Partial<typeof cloudSyncJobs.$inferInsert>) {
+  const [current] = await db.select().from(cloudSyncJobs).where(eq(cloudSyncJobs.id, jobId)).limit(1)
+  if (!current) return null
+  const metadata = parseMetadata(current.metadataJson)
+  const patch = mutate(current, metadata)
+  const [row] = await db.update(cloudSyncJobs).set({
+    ...patch,
+    updatedAt: new Date(),
+  }).where(eq(cloudSyncJobs.id, jobId)).returning()
+  return row ? mapJob(row) : null
 }
 
 export async function createSyncJob(input: {
@@ -38,6 +91,7 @@ export async function createSyncJob(input: {
   metadata?: Record<string, unknown>
   maxAttempts?: number
 }) {
+  const history = [createEvent("created", `Queued ${input.type} job`)]
   const [job] = await db.insert(cloudSyncJobs).values({
     type: input.type,
     remoteKey: input.remoteKey,
@@ -49,7 +103,7 @@ export async function createSyncJob(input: {
     bytesTotal: input.bytesTotal ?? null,
     maxAttempts: input.maxAttempts ?? 5,
     status: "queued",
-    metadataJson: input.metadata ? JSON.stringify(input.metadata) : null,
+    metadataJson: JSON.stringify(setHistory(input.metadata ?? null, history)),
     nextRetryAt: new Date(),
   }).returning()
 
@@ -67,12 +121,21 @@ export async function reserveJobs(limit: number): Promise<SyncTask[]> {
 
   const reserved: SyncTask[] = []
   for (const job of due) {
+    const metadata = parseMetadata(job.metadataJson)
+    const history = getHistory(metadata)
     const [updated] = await db.update(cloudSyncJobs).set({
       status: "running",
       attempts: job.attempts + 1,
       lastStartedAt: new Date(),
       updatedAt: new Date(),
       errorMessage: null,
+      metadataJson: JSON.stringify(setHistory({
+        ...(metadata ?? {}),
+        lastRunStartedAt: new Date().toISOString(),
+      }, [
+        ...history,
+        createEvent("running", `Started ${job.type} attempt ${job.attempts + 1}`, { attempt: job.attempts + 1 }),
+      ])),
     }).where(and(eq(cloudSyncJobs.id, job.id), eq(cloudSyncJobs.status, job.status))).returning()
 
     if (updated) reserved.push(mapJob(updated))
@@ -81,32 +144,141 @@ export async function reserveJobs(limit: number): Promise<SyncTask[]> {
   return reserved
 }
 
-export async function markJobSucceeded(jobId: string, update: { bytesTransferred?: number | null; checksumSha256?: string | null; localPath?: string | null } = {}) {
-  const [row] = await db.update(cloudSyncJobs).set({
-    status: "succeeded",
-    bytesTransferred: update.bytesTransferred ?? undefined,
-    checksumSha256: update.checksumSha256 ?? undefined,
-    localPath: update.localPath ?? undefined,
-    completedAt: new Date(),
-    nextRetryAt: null,
-    errorMessage: null,
-    updatedAt: new Date(),
-  }).where(eq(cloudSyncJobs.id, jobId)).returning()
-  return row ? mapJob(row) : null
+export async function updateJobProgress(jobId: string, update: { bytesTransferred?: number | null; message: string }) {
+  return patchJob(jobId, (_current, metadata) => {
+    const history = getHistory(metadata)
+    return {
+      bytesTransferred: update.bytesTransferred ?? undefined,
+      metadataJson: JSON.stringify(setHistory({
+        ...(metadata ?? {}),
+        lastProgressAt: new Date().toISOString(),
+      }, [
+        ...history,
+        createEvent("progress", update.message, { bytesTransferred: update.bytesTransferred ?? null }),
+      ])),
+    }
+  })
+}
+
+export async function markJobSucceeded(jobId: string, update: { bytesTransferred?: number | null; checksumSha256?: string | null; localPath?: string | null; message?: string } = {}) {
+  return patchJob(jobId, (current, metadata) => {
+    const history = getHistory(metadata)
+    const lastStartedAt = current.lastStartedAt ? new Date(current.lastStartedAt).getTime() : null
+    const lastRunMs = lastStartedAt ? Date.now() - lastStartedAt : null
+    return {
+      status: "succeeded",
+      bytesTransferred: update.bytesTransferred ?? undefined,
+      checksumSha256: update.checksumSha256 ?? undefined,
+      localPath: update.localPath ?? undefined,
+      completedAt: new Date(),
+      nextRetryAt: null,
+      errorMessage: null,
+      metadataJson: JSON.stringify(setHistory({
+        ...(metadata ?? {}),
+        lastRunMs,
+      }, [
+        ...history,
+        createEvent("succeeded", update.message ?? "Transfer completed"),
+      ])),
+    }
+  })
 }
 
 export async function markJobFailed(jobId: string, errorMessage: string, retryAt?: Date | null) {
-  const [current] = await db.select().from(cloudSyncJobs).where(eq(cloudSyncJobs.id, jobId)).limit(1)
-  if (!current) return null
+  return patchJob(jobId, (current, metadata) => {
+    const history = getHistory(metadata)
+    const exhausted = current.attempts >= current.maxAttempts
+    return {
+      status: exhausted || !retryAt ? "failed" : "retrying",
+      errorMessage,
+      nextRetryAt: exhausted ? null : retryAt,
+      metadataJson: JSON.stringify(setHistory(metadata, [
+        ...history,
+        createEvent(exhausted || !retryAt ? "failed" : "retrying", exhausted ? `Failed permanently: ${errorMessage}` : `Retry scheduled: ${errorMessage}`, {
+          attempt: current.attempts,
+        }),
+      ])),
+    }
+  })
+}
 
-  const exhausted = current.attempts >= current.maxAttempts
-  const [row] = await db.update(cloudSyncJobs).set({
-    status: exhausted || !retryAt ? "failed" : "retrying",
-    errorMessage,
-    nextRetryAt: exhausted ? null : retryAt,
-    updatedAt: new Date(),
-  }).where(eq(cloudSyncJobs.id, jobId)).returning()
-  return row ? mapJob(row) : null
+export async function pauseSyncJobs(filter: { projectId?: string } = {}) {
+  const conditions = [inArray(cloudSyncJobs.status, ["queued", "retrying", "running"] as SyncTaskStatus[])]
+  if (filter.projectId) conditions.push(eq(cloudSyncJobs.projectId, filter.projectId))
+  const rows = await db.select().from(cloudSyncJobs).where(and(...conditions))
+  let count = 0
+  for (const row of rows) {
+    const updated = await patchJob(row.id, (_current, metadata) => ({
+      status: "paused",
+      nextRetryAt: null,
+      metadataJson: JSON.stringify(setHistory(metadata, [
+        ...getHistory(metadata),
+        createEvent("paused", "Paused from admin controls"),
+      ])),
+    }))
+    if (updated) count += 1
+  }
+  return count
+}
+
+export async function resumeSyncJobs(filter: { projectId?: string } = {}) {
+  const conditions = [eq(cloudSyncJobs.status, "paused")]
+  if (filter.projectId) conditions.push(eq(cloudSyncJobs.projectId, filter.projectId))
+  const rows = await db.select().from(cloudSyncJobs).where(and(...conditions))
+  let count = 0
+  for (const row of rows) {
+    const updated = await patchJob(row.id, (_current, metadata) => ({
+      status: "queued",
+      nextRetryAt: new Date(),
+      errorMessage: null,
+      metadataJson: JSON.stringify(setHistory(metadata, [
+        ...getHistory(metadata),
+        createEvent("queued", "Resumed from admin controls"),
+      ])),
+    }))
+    if (updated) count += 1
+  }
+  return count
+}
+
+export async function cancelSyncJobs(filter: { projectId?: string } = {}) {
+  const conditions = [inArray(cloudSyncJobs.status, ["queued", "retrying", "paused"] as SyncTaskStatus[])]
+  if (filter.projectId) conditions.push(eq(cloudSyncJobs.projectId, filter.projectId))
+  const rows = await db.select().from(cloudSyncJobs).where(and(...conditions))
+  let count = 0
+  for (const row of rows) {
+    const updated = await patchJob(row.id, (_current, metadata) => ({
+      status: "cancelled",
+      nextRetryAt: null,
+      metadataJson: JSON.stringify(setHistory(metadata, [
+        ...getHistory(metadata),
+        createEvent("cancelled", "Cancelled from admin controls"),
+      ])),
+    }))
+    if (updated) count += 1
+  }
+  return count
+}
+
+export async function retrySyncJobs(filter: { projectId?: string; onlyFailed?: boolean } = {}) {
+  const statuses: SyncTaskStatus[] = filter.onlyFailed ? ["failed", "cancelled"] : ["failed", "cancelled", "paused"]
+  const conditions = [inArray(cloudSyncJobs.status, statuses)]
+  if (filter.projectId) conditions.push(eq(cloudSyncJobs.projectId, filter.projectId))
+  const rows = await db.select().from(cloudSyncJobs).where(and(...conditions))
+  let count = 0
+  for (const row of rows) {
+    const updated = await patchJob(row.id, (_current, metadata) => ({
+      status: "queued",
+      nextRetryAt: new Date(),
+      errorMessage: null,
+      metadataJson: JSON.stringify(setHistory(metadata, [
+        ...getHistory(metadata),
+        createEvent("queued", "Manually requeued"),
+      ])),
+    }))
+    if (updated) count += 1
+  }
+  return count
 }
 
 export async function listSyncTasks(limit = 100) {
@@ -116,14 +288,16 @@ export async function listSyncTasks(limit = 100) {
 
 export async function getQueueSummary(): Promise<CloudQueueSummary> {
   const rows = await db.select({ status: cloudSyncJobs.status, type: cloudSyncJobs.type, count: sql<number>`count(*)::int` }).from(cloudSyncJobs).groupBy(cloudSyncJobs.status, cloudSyncJobs.type)
-  const summary: CloudQueueSummary = { queued: 0, running: 0, retrying: 0, succeeded: 0, failed: 0, uploadsQueued: 0, downloadsQueued: 0 }
+  const summary: CloudQueueSummary = { queued: 0, running: 0, paused: 0, retrying: 0, succeeded: 0, failed: 0, cancelled: 0, uploadsQueued: 0, downloadsQueued: 0 }
   for (const row of rows) {
     const count = Number(row.count ?? 0)
     if (row.status === "queued") summary.queued += count
     if (row.status === "running") summary.running += count
+    if (row.status === "paused") summary.paused += count
     if (row.status === "retrying") summary.retrying += count
     if (row.status === "succeeded") summary.succeeded += count
     if (row.status === "failed") summary.failed += count
+    if (row.status === "cancelled") summary.cancelled += count
     if (row.status === "queued" && row.type === "upload") summary.uploadsQueued += count
     if (row.status === "queued" && row.type === "download") summary.downloadsQueued += count
   }
@@ -140,17 +314,29 @@ export async function getRecentActivity(limit = 12): Promise<CloudRecentActivity
     createdAt: cloudSyncJobs.createdAt,
     updatedAt: cloudSyncJobs.updatedAt,
     projectName: projects.name,
+    bytesTotal: cloudSyncJobs.bytesTotal,
+    bytesTransferred: cloudSyncJobs.bytesTransferred,
+    metadataJson: cloudSyncJobs.metadataJson,
   }).from(cloudSyncJobs).leftJoin(projects, eq(projects.id, cloudSyncJobs.projectId)).orderBy(desc(cloudSyncJobs.updatedAt)).limit(limit)
 
-  return rows.map((row) => ({
-    id: row.id,
-    title: `${row.type === "upload" ? "Upload" : row.type === "download" ? "Download" : row.type === "evict-cache" ? "Evict cache" : "Delete local cache"} ${row.projectName ? `• ${row.projectName}` : ""}`.trim(),
-    detail: row.errorMessage || row.remoteKey,
-    status: row.status as SyncTaskStatus,
-    createdAt: row.createdAt ?? new Date(),
-    updatedAt: row.updatedAt ?? new Date(),
-    projectName: row.projectName,
-  }))
+  return rows.map((row) => {
+    const metadata = parseMetadata(row.metadataJson)
+    const history = getHistory(metadata)
+    const bytesTotal = Number(row.bytesTotal ?? 0)
+    const bytesTransferred = Number(row.bytesTransferred ?? 0)
+    const progressLabel = bytesTotal > 0 ? `${Math.min(100, Math.round((bytesTransferred / bytesTotal) * 100))}% • ${bytesTransferred}/${bytesTotal} bytes` : undefined
+    return {
+      id: row.id,
+      title: `${row.type === "upload" ? "Upload" : row.type === "download" ? "Download" : row.type === "evict-cache" ? "Evict cache" : "Delete local cache"} ${row.projectName ? `• ${row.projectName}` : ""}`.trim(),
+      detail: row.errorMessage || history.at(-1)?.message || row.remoteKey,
+      status: row.status as SyncTaskStatus,
+      createdAt: row.createdAt ?? new Date(),
+      updatedAt: row.updatedAt ?? new Date(),
+      projectName: row.projectName,
+      history,
+      progressLabel,
+    }
+  })
 }
 
 export async function upsertCacheEntry(input: {
@@ -206,6 +392,13 @@ export async function listEvictionCandidates(limit = 50) {
 export async function markCacheEntryEvicted(ids: string[]) {
   if (ids.length === 0) return
   await db.update(cloudCacheEntries).set({ cacheState: "evicted", updatedAt: new Date() }).where(inArray(cloudCacheEntries.id, ids))
+}
+
+export async function setProjectCachePinned(projectId: string, pinned: boolean) {
+  const rows = await db.select().from(cloudCacheEntries).where(eq(cloudCacheEntries.projectId, projectId))
+  if (rows.length === 0) return 0
+  await db.update(cloudCacheEntries).set({ pinned, updatedAt: new Date() }).where(eq(cloudCacheEntries.projectId, projectId))
+  return rows.length
 }
 
 export async function getProjectFilesForCloud(projectId: string) {

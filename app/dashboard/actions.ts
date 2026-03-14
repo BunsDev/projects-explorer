@@ -2714,7 +2714,7 @@ export async function syncGitHubRepoAction(
 
 import { getCloudStorageConfig, isCloudStorageConfigured } from "@/lib/cloud/config"
 import { S3CompatibleStorageProvider } from "@/lib/cloud/providers/s3-compatible-provider"
-import { createSyncJob, getProjectFilesForCloud, listEvictionCandidates } from "@/lib/cloud/queue-store"
+import { cancelSyncJobs, createSyncJob, getProjectFilesForCloud, listEvictionCandidates, pauseSyncJobs, resumeSyncJobs, retrySyncJobs, setProjectCachePinned } from "@/lib/cloud/queue-store"
 import { processSyncQueue } from "@/lib/cloud/transfer-worker"
 
 export async function validateCloudCredentialsAction(): Promise<{ success: boolean; message: string }> {
@@ -2723,16 +2723,19 @@ export async function validateCloudCredentialsAction(): Promise<{ success: boole
 
   const config = getCloudStorageConfig()
   if (!isCloudStorageConfigured(config)) {
-    return { success: false, message: "Cloud env vars are incomplete. Set bucket, region, access key, and secret." }
+    const missing = [
+      !config.bucket && "bucket",
+      !config.region && "region",
+      !config.accessKeyId && "access key",
+      !config.secretAccessKey && "secret",
+      !config.endpoint && "endpoint",
+    ].filter(Boolean).join(", ")
+    return { success: false, message: `Cloud env vars are incomplete. Missing: ${missing || "required values"}.` }
   }
 
-  try {
-    const provider = new S3CompatibleStorageProvider()
-    await provider.list("")
-    return { success: true, message: "Cloud credentials validated against the configured bucket." }
-  } catch (error) {
-    return { success: false, message: error instanceof Error ? error.message : "Credential validation failed" }
-  }
+  const provider = new S3CompatibleStorageProvider()
+  const probe = await provider.probe()
+  return { success: probe.success, message: probe.message }
 }
 
 function buildRemoteKey(projectName: string | null | undefined, filename: string, fileId: string) {
@@ -2796,18 +2799,67 @@ export async function queueEvictionAction(projectId?: string): Promise<{ success
   const scoped = projectId ? candidates.filter((item) => item.projectId === projectId) : candidates
   if (scoped.length === 0) return { success: false, error: "No safe eviction candidates are available yet." }
 
-  const bytes = scoped.reduce((sum, item) => sum + Number(item.sizeBytes ?? 0), 0)
+  const config = getCloudStorageConfig()
+  const bytes = Math.min(
+    scoped.reduce((sum, item) => sum + Number(item.sizeBytes ?? 0), 0),
+    config.warningFreeBytes,
+  )
   await createSyncJob({
     type: "evict-cache",
     projectId: projectId ?? null,
     remoteKey: projectId ? `project/${projectId}/eviction` : "global/eviction",
     bytesTotal: bytes,
-    metadata: { safeMode: true },
+    metadata: { safeMode: true, requestedBy: "dashboard" },
   })
 
   revalidatePath("/dashboard")
   if (projectId) revalidatePath(`/dashboard/projects/${projectId}`)
   return { success: true, message: `Queued safe eviction for ${scoped.length} cache entr${scoped.length === 1 ? "y" : "ies"}.` }
+}
+
+async function revalidateCloudPaths(projectId?: string) {
+  revalidatePath("/dashboard")
+  if (projectId) revalidatePath(`/dashboard/projects/${projectId}`)
+}
+
+export async function pauseSyncQueueAction(projectId?: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+  const count = await pauseSyncJobs({ projectId })
+  await revalidateCloudPaths(projectId)
+  return { success: true, message: count > 0 ? `Paused ${count} sync job${count === 1 ? "" : "s"}.` : "No active sync jobs needed pausing." }
+}
+
+export async function resumeSyncQueueAction(projectId?: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+  const count = await resumeSyncJobs({ projectId })
+  await revalidateCloudPaths(projectId)
+  return { success: true, message: count > 0 ? `Resumed ${count} paused sync job${count === 1 ? "" : "s"}.` : "No paused jobs were found." }
+}
+
+export async function cancelSyncQueueAction(projectId?: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+  const count = await cancelSyncJobs({ projectId })
+  await revalidateCloudPaths(projectId)
+  return { success: true, message: count > 0 ? `Cancelled ${count} queued sync job${count === 1 ? "" : "s"}.` : "No queued jobs were available to cancel." }
+}
+
+export async function retrySyncQueueAction(projectId?: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+  const count = await retrySyncJobs({ projectId })
+  await revalidateCloudPaths(projectId)
+  return { success: true, message: count > 0 ? `Requeued ${count} sync job${count === 1 ? "" : "s"}.` : "No failed, cancelled, or paused jobs were available to retry." }
+}
+
+export async function setProjectPinProtectionAction(projectId: string, pinned: boolean): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await requireAuthAction()
+  if (!auth.authorized) return { success: false, error: auth.error }
+  const count = await setProjectCachePinned(projectId, pinned)
+  await revalidateCloudPaths(projectId)
+  return { success: true, message: count > 0 ? `${pinned ? "Pinned" : "Unpinned"} ${count} cache entr${count === 1 ? "y" : "ies"}.` : "No cache entries existed yet for this project." }
 }
 
 export async function processSyncQueueAction(): Promise<{ success: boolean; message?: string; error?: string }> {
@@ -2817,7 +2869,10 @@ export async function processSyncQueueAction(): Promise<{ success: boolean; mess
   try {
     const result = await processSyncQueue({ concurrency: 2 })
     revalidatePath("/dashboard")
-    return { success: true, message: `Worker processed ${result.picked} job(s): ${result.succeeded} succeeded, ${result.failed} scheduled for retry/failed.` }
+    return {
+      success: true,
+      message: `Worker processed ${result.picked} job(s): ${result.succeeded} succeeded, ${result.failed} scheduled for retry/failed.${result.autoEvictedBytes > 0 ? ` Auto-evicted ${result.autoEvictedBytes} bytes under disk pressure.` : ""}`,
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Queue processing failed" }
   }
