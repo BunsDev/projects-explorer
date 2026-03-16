@@ -18,6 +18,7 @@
     "downloadable"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "bdev": "next build && next dev",
     "build": "next build",
     "dev": "next dev",

@@ -34,6 +34,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { getFilesAction, updateProjectDeployedUrlAction, fetchGitHubTreeAction, saveGitHubSnapshotAction, syncGitHubRepoAction } from "@/app/dashboard/actions"
 import { GitHubFileTree } from "@/components/github-file-tree"
 import { CloudProjectActions } from "@/components/cloud-project-actions"
+import type { CloudCacheEntryView, ConflictRecord } from "@/lib/cloud/types"
 
 type Project = {
   id: string
@@ -114,6 +115,8 @@ interface ProjectDetailClientProps {
   initialFiles: File[]
   treeFolders: TreeFolder[]
   treeFiles: TreeFile[]
+  cloudCacheEntries: CloudCacheEntryView[]
+  cloudConflicts: ConflictRecord[]
 }
 
 export function ProjectDetailClient({
@@ -122,6 +125,8 @@ export function ProjectDetailClient({
   initialFiles,
   treeFolders,
   treeFiles,
+  cloudCacheEntries: _cloudCacheEntries,
+  cloudConflicts: _cloudConflicts,
 }: ProjectDetailClientProps) {
   const router = useRouter()
   const [folders, setFolders] = useState<Folder[]>(initialFolders)
